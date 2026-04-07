@@ -39,7 +39,6 @@ abstract class BlinkGenerateTask : DefaultTask() {
     @get:Input abstract val libraries: ListProperty<String>
     @get:Input abstract val enableScript: Property<Boolean>
     @get:Input abstract val enableAria: Property<Boolean>
-    @get:Input abstract val ariaVersion: Property<String>
     @get:Input abstract val foliaSupported: Property<Boolean>
     @get:Input abstract val packageName: Property<String>
 
@@ -148,10 +147,7 @@ abstract class BlinkGenerateTask : DefaultTask() {
             sb.appendLine("folia-supported: true")
         }
 
-        val libs = libraries.get().toMutableList()
-        if (enableAria.get()) {
-            libs.add("priv.seventeen.artist.aria:aria:${ariaVersion.get()}")
-        }
+        val libs = libraries.get()
         if (libs.isNotEmpty()) {
             sb.appendLine("blink-libraries:")
             libs.forEach { sb.appendLine("  - '$it'") }

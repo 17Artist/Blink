@@ -27,9 +27,9 @@ import java.io.File
 /**
  * Aria 脚本引擎管理器。
  *
- * <p>blink-common 通过 compileOnly 依赖 Aria，运行时由 DependencyLoader.loadAll() 自动下载并注入 classpath。
- * 当 {@code enableAria = true} 时，Aria 坐标会被写入 plugin.yml 的 blink-libraries，
- * 由 loadAll() 统一处理。生成的主类在 onLoad 调用 {@link #init()}，onDisable 调用 {@link #shutdown()}。
+ * <p>blink-common 通过 compileOnly 依赖 Aria，运行时由 DependencyLoader.loadAria() 自动下载并注入 classpath。
+ * 当 {@code enableAria = true} 时，生成的主类在 onLoad 先调用 loadAria() 下载注入，
+ * 再调用 {@link #init()}，onDisable 调用 {@link #shutdown()}。
  */
 object AriaScriptManager {
 

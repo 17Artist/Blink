@@ -92,7 +92,6 @@ class BlinkPlugin : Plugin<Project> {
             task.libraries.set(extension.libraries)
             task.enableScript.set(extension.enableScript)
             task.enableAria.set(extension.enableAria)
-            task.ariaVersion.set(project.findProperty("ariaVersion")?.toString() ?: "1.0.1")
             task.foliaSupported.set(extension.foliaSupported)
             task.packageName.set(extension.packageName)
         }

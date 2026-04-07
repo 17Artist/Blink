@@ -90,6 +90,10 @@ class BytecodeGenerator(private val targetPkg: String) {
         }
 
         if (enableAria) {
+            mv.visitFieldInsn(GETSTATIC, DEP_LOADER, "INSTANCE", "L$DEP_LOADER;")
+            mv.visitVarInsn(ALOAD, 0)
+            mv.visitMethodInsn(INVOKEVIRTUAL, DEP_LOADER, "loadAria", "(L$JAVA_PLUGIN;)V", false)
+
             mv.visitFieldInsn(GETSTATIC, ARIA_SCRIPT_MANAGER, "INSTANCE", "L$ARIA_SCRIPT_MANAGER;")
             mv.visitMethodInsn(INVOKEVIRTUAL, ARIA_SCRIPT_MANAGER, "init", "()V", false)
         }

@@ -58,6 +58,27 @@ object DependencyLoader {
         Dependency("org.ow2.asm", "asm-util", "9.7.1")
     )
 
+    private val ARIA_DEPENDENCIES = listOf(
+        Dependency("priv.seventeen.artist.aria", "aria", "1.0.1")
+    )
+
+    fun loadAria(plugin: JavaPlugin) {
+        val libsDir = File(plugin.dataFolder, "libs")
+        libsDir.mkdirs()
+
+        val repositories = loadRepositories(plugin)
+        val classLoader = plugin.javaClass.classLoader
+
+        for (dep in ARIA_DEPENDENCIES) {
+            val file = File(libsDir, dep.fileName)
+            if (file.exists()) {
+                BlinkLog.detail("${dep.fileName} 已存在，直接加载")
+                tryInject(classLoader, file, plugin)
+                continue
+            }
+            downloadAndInject(dep, libsDir, repositories, classLoader, plugin)
+        }
+    }
 
     fun loadNashorn(plugin: JavaPlugin): List<File> {
         val libsDir = File(plugin.dataFolder, "libs")
