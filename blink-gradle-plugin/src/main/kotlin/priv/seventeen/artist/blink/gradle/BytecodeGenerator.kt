@@ -31,6 +31,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         private const val EVENT_MANAGER = "priv/seventeen/artist/blink/event/EventManager"
         private const val SCRIPT_MANAGER = "priv/seventeen/artist/blink/script/ScriptManager"
         private const val ARIA_SCRIPT_MANAGER = "priv/seventeen/artist/blink/script/AriaScriptManager"
+        private const val ASTEROID_MANAGER = "priv/seventeen/artist/blink/nms/AsteroidManager"
         private const val DEP_LOADER = "priv/seventeen/artist/blink/loader/DependencyLoader"
 
         private const val JAVA_PLUGIN = "org/bukkit/plugin/java/JavaPlugin"
@@ -41,15 +42,15 @@ class BytecodeGenerator(private val targetPkg: String) {
         private const val SCHEDULER = "org/bukkit/scheduler/BukkitScheduler"
     }
 
-    fun generateMainClass(enableScript: Boolean, enableAria: Boolean): ByteArray {
+    fun generateMainClass(enableScript: Boolean, enableAria: Boolean, enableAsteroid: Boolean): ByteArray {
         val cw = ClassWriter(ClassWriter.COMPUTE_FRAMES or ClassWriter.COMPUTE_MAXS)
         val mainClass = "$targetPkg/BlinkGeneratedMain"
 
         cw.visit(V17, ACC_PUBLIC or ACC_SUPER, mainClass, null, JAVA_PLUGIN, null)
         generateConstructor(cw, JAVA_PLUGIN)
-        generateOnLoad(cw, mainClass, enableScript, enableAria)
+        generateOnLoad(cw, mainClass, enableScript, enableAria, enableAsteroid)
         generateOnEnable(cw, mainClass)
-        generateOnDisable(cw, enableScript, enableAria)
+        generateOnDisable(cw, enableScript, enableAria, enableAsteroid)
         cw.visitEnd()
         return cw.toByteArray()
     }
@@ -64,7 +65,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         mv.visitEnd()
     }
 
-    private fun generateOnLoad(cw: ClassWriter, @Suppress("UNUSED_PARAMETER") mainClass: String, enableScript: Boolean, enableAria: Boolean) {
+    private fun generateOnLoad(cw: ClassWriter, @Suppress("UNUSED_PARAMETER") mainClass: String, enableScript: Boolean, enableAria: Boolean, enableAsteroid: Boolean) {
         val mv = cw.visitMethod(ACC_PUBLIC, "onLoad", "()V", null, null)
         mv.visitCode()
 
@@ -96,6 +97,16 @@ class BytecodeGenerator(private val targetPkg: String) {
 
             mv.visitFieldInsn(GETSTATIC, ARIA_SCRIPT_MANAGER, "INSTANCE", "L$ARIA_SCRIPT_MANAGER;")
             mv.visitMethodInsn(INVOKEVIRTUAL, ARIA_SCRIPT_MANAGER, "init", "()V", false)
+        }
+
+        if (enableAsteroid) {
+            mv.visitFieldInsn(GETSTATIC, DEP_LOADER, "INSTANCE", "L$DEP_LOADER;")
+            mv.visitVarInsn(ALOAD, 0)
+            mv.visitMethodInsn(INVOKEVIRTUAL, DEP_LOADER, "loadAsteroid", "(L$JAVA_PLUGIN;)V", false)
+
+            mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
+            mv.visitVarInsn(ALOAD, 0)
+            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "init", "(L$JAVA_PLUGIN;)V", false)
         }
 
         mv.visitMethodInsn(INVOKESTATIC, "$targetPkg/BlinkGeneratedLifeCycle", "registerAll", "()V", false)
@@ -163,7 +174,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         lambdaMv.visitEnd()
     }
 
-    private fun generateOnDisable(cw: ClassWriter, enableScript: Boolean, enableAria: Boolean) {
+    private fun generateOnDisable(cw: ClassWriter, enableScript: Boolean, enableAria: Boolean, enableAsteroid: Boolean) {
         val mv = cw.visitMethod(ACC_PUBLIC, "onDisable", "()V", null, null)
         mv.visitCode()
 
@@ -179,6 +190,11 @@ class BytecodeGenerator(private val targetPkg: String) {
         if (enableAria) {
             mv.visitFieldInsn(GETSTATIC, ARIA_SCRIPT_MANAGER, "INSTANCE", "L$ARIA_SCRIPT_MANAGER;")
             mv.visitMethodInsn(INVOKEVIRTUAL, ARIA_SCRIPT_MANAGER, "shutdown", "()V", false)
+        }
+
+        if (enableAsteroid) {
+            mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
+            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "shutdown", "()V", false)
         }
 
         mv.visitInsn(RETURN)

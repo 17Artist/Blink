@@ -43,6 +43,10 @@ class BlinkPlugin : Plugin<Project> {
                 configureAria(project)
             }
 
+            if (extension.enableAsteroid.get()) {
+                configureAsteroid(project)
+            }
+
             configureCodeGeneration(project, extension)
             configureShadow(project, extension)
 
@@ -62,6 +66,18 @@ class BlinkPlugin : Plugin<Project> {
             project.logger.lifecycle("[Blink] Aria 脚本引擎已添加 (compileOnly): $depNotation")
         } else {
             project.logger.warn("[Blink] 未找到 compileOnly 配置，无法添加 Aria 依赖")
+        }
+    }
+
+    private fun configureAsteroid(project: Project) {
+        val asteroidVersion = project.findProperty("asteroidVersion")?.toString() ?: "1.0.1"
+        val depNotation = "priv.seventeen.artist.asteroid:asteroid-api:$asteroidVersion"
+        val compileOnly = project.configurations.findByName("compileOnly")
+        if (compileOnly != null) {
+            project.dependencies.add("compileOnly", depNotation)
+            project.logger.lifecycle("[Blink] Asteroid NMS 桥接已添加 (compileOnly): $depNotation")
+        } else {
+            project.logger.warn("[Blink] 未找到 compileOnly 配置，无法添加 Asteroid 依赖")
         }
     }
 
@@ -92,6 +108,7 @@ class BlinkPlugin : Plugin<Project> {
             task.libraries.set(extension.libraries)
             task.enableScript.set(extension.enableScript)
             task.enableAria.set(extension.enableAria)
+            task.enableAsteroid.set(extension.enableAsteroid)
             task.foliaSupported.set(extension.foliaSupported)
             task.packageName.set(extension.packageName)
         }

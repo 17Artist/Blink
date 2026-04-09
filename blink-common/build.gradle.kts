@@ -5,6 +5,8 @@ plugins {
 dependencies {
     compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
     compileOnly("priv.seventeen.artist.aria:aria:${property("ariaVersion")}")
+    compileOnly("priv.seventeen.artist.asteroid:asteroid-api:${property("asteroidVersion")}")
+    compileOnly("priv.seventeen.artist.asteroid:asteroid-nms:${property("asteroidVersion")}")
 }
 
 tasks.withType<JavaCompile> {

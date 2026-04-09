@@ -37,6 +37,8 @@ abstract class BlinkExtension {
 
     abstract val enableAria: Property<Boolean>
 
+    abstract val enableAsteroid: Property<Boolean>
+
     abstract val obfuscate: Property<Boolean>
 
     abstract val obfuscateKeep: ListProperty<String>
@@ -55,6 +57,7 @@ abstract class BlinkExtension {
         kotlinVersion.convention("1.8.22")
         enableScript.convention(false)
         enableAria.convention(false)
+        enableAsteroid.convention(false)
         foliaSupported.convention(false)
         packageName.convention("")
         obfuscate.convention(false)

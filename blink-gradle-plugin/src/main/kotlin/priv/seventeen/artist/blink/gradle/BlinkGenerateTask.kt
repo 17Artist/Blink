@@ -39,6 +39,7 @@ abstract class BlinkGenerateTask : DefaultTask() {
     @get:Input abstract val libraries: ListProperty<String>
     @get:Input abstract val enableScript: Property<Boolean>
     @get:Input abstract val enableAria: Property<Boolean>
+    @get:Input abstract val enableAsteroid: Property<Boolean>
     @get:Input abstract val foliaSupported: Property<Boolean>
     @get:Input abstract val packageName: Property<String>
 
@@ -69,7 +70,7 @@ abstract class BlinkGenerateTask : DefaultTask() {
         writeClass(classesRoot, "$internalPkg/BlinkGeneratedEvents.class",
             generator.generateEventsClass(scanner.listenerEntries))
         writeClass(classesRoot, "$internalPkg/BlinkGeneratedMain.class",
-            generator.generateMainClass(enableScript.get(), enableAria.get()))
+            generator.generateMainClass(enableScript.get(), enableAria.get(), enableAsteroid.get()))
 
         generatePluginYml(classesRoot, pkg)
         writeScanResult(classesRoot, scanner)
