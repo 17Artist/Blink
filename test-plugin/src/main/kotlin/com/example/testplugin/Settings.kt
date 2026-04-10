@@ -27,6 +27,14 @@ class Settings : BlinkConfig(bukkitPlugin, "config") {
     @ConfigKey("enable-script")
     var enableScript: Boolean = true
 
+    @Comment("是否启用 Aria 脚本引擎")
+    @ConfigKey("enable-aria")
+    var enableAria: Boolean = true
+
+    @Comment("是否启用 Asteroid NMS 桥接")
+    @ConfigKey("enable-asteroid")
+    var enableAsteroid: Boolean = true
+
     @Comment("调试模式")
     @ConfigKey("debug")
     var debug: Boolean = false

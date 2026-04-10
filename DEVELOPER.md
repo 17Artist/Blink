@@ -7,6 +7,9 @@ BlinkGeneratedMain.onLoad()
     KotlinBootstrap.bootstrap(this)
     bukkitPlugin = this
     DependencyLoader.loadAll()
+    [enableScript]  DependencyLoader.loadNashorn() → ScriptManager.init()
+    [enableAria]    DependencyLoader.loadAria() → AriaScriptManager.init()
+    [enableAsteroid] DependencyLoader.loadAsteroid() → AsteroidManager.init(plugin)
     BlinkGeneratedLifeCycle.registerAll()
     LifeCycleManager.trigger(LOAD)
 
@@ -17,7 +20,9 @@ BlinkGeneratedMain.onEnable()
 
 BlinkGeneratedMain.onDisable()
     LifeCycleManager.trigger(DISABLE)
-    ScriptManager.shutdown()
+    [enableScript]   ScriptManager.shutdown()
+    [enableAria]     AriaScriptManager.shutdown()
+    [enableAsteroid] AsteroidManager.shutdown()
 ```
 
 ## 快速开始
@@ -100,6 +105,8 @@ blink {
     libraries.set(listOf("com.google.code.gson:gson:2.10.1"))
     kotlinVersion.set("1.8.22")
     enableScript.set(false)
+    enableAria.set(false)
+    enableAsteroid.set(false)
     packageName.set("com.example.myplugin")
     obfuscate.set(false)
     obfuscateKeep.set(listOf())
@@ -325,15 +332,101 @@ disable 时由生成的主类自动调用 `ScriptManager.shutdown()`。
 
 `enableScript = false` 时不会下载任何依赖。
 
+## Aria 脚本引擎
+
+集成 [Aria](https://repo.arcartx.com) 脚本引擎，`enableAria.set(true)` 启用后运行时自动下载。Aria 支持预编译、上下文隔离，适合需要高频执行脚本的场景。
+
+```kotlin
+@Awake(LifeCycle.ENABLE, priority = 10)
+fun initAria() {
+    if (AriaScriptManager.isAvailable) {
+        bukkitPlugin.logger.info("Aria engine ready!")
+    }
+}
+```
+
+```kotlin
+// 基本执行
+AriaScriptManager.eval("1 + 2 + 3")
+
+// 带变量注入
+AriaScriptManager.eval("msg + name", mapOf("msg" to "Hello ", "name" to "World"))
+
+// 执行文件
+AriaScriptManager.evalFile(File(bukkitPlugin.dataFolder, "scripts/init.aria"))
+
+// 上下文隔离
+val ctx = AriaScriptManager.createContext()
+AriaScriptManager.eval("var x = 42", ctx)
+
+// 预编译（适合热路径，编译一次多次执行）
+val routine = AriaScriptManager.compile("greeting.aria", "msg + '!'")
+routine.execute(AriaScriptManager.createContext())
+```
+
+disable 时由生成的主类自动调用 `AriaScriptManager.shutdown()`。
+
+`enableAria = false` 时不会下载任何依赖。
+
+## Asteroid NMS 桥接
+
+集成 [Asteroid](https://repo.arcartx.com) 跨版本 NMS 操作库，`enableAsteroid.set(true)` 启用后运行时自动下载。一套代码适配 MC 1.18.2 ~ 26.1，兼容 Paper / Spigot / Folia。
+
+```kotlin
+@Awake(LifeCycle.ENABLE, priority = 10)
+fun initNMS() {
+    if (AsteroidManager.isAvailable) {
+        bukkitPlugin.logger.info("Asteroid ready — MC ${AsteroidAPI.getMcVersion()}")
+    }
+}
+```
+
+```kotlin
+// 数据包监听
+AsteroidAPI.addPacketListener(bukkitPlugin, object : PacketListener {
+    override fun onReceive(event: PacketEvent) { }
+    override fun onSend(event: PacketEvent) { }
+})
+
+// 自定义实体（Ability 组合模式）
+val entity = AsteroidAPI.createCustomEntity(player.location, 1.0, 2.0)
+entity.addAbility(HitboxAbility(1.5, 2.0))
+entity.addAbility(DamageAbility { event -> event.isCancelled = true })
+
+// ItemTag — 跨版本 NBT/DataComponent 统一读写
+val tag = ItemTag.fromItemStack(itemStack)
+tag.putDeep("custom.damage", ItemTagData.of(100))
+tag.saveTo(itemStack)
+
+// 属性桥接
+val bridge = AsteroidAPI.getAttributeBridge()
+bridge.setModifier(player, "generic.max_health", "my_health", 20.0, 0) // 0 = ADD_NUMBER
+
+// 生物 AI
+val ai = AsteroidAPI.getMobAI()
+ai.clearGoals(mob)
+ai.addGoal(mob, 1, myCustomGoal)
+
+// 物品序列化
+val json = AsteroidAPI.getItemStackNMS().item2Json(itemStack)
+val restored = AsteroidAPI.getItemStackNMS().json2Item(json)
+```
+
+disable 时由生成的主类自动调用 `AsteroidManager.shutdown()`。
+
+`enableAsteroid = false` 时不会下载任何依赖。
+
 ## 运行时依赖加载
 
 onLoad 阶段自动下载：
 
-| 依赖                                           | 条件                  |
-|----------------------------------------------|---------------------|
-| kotlin-stdlib / kotlin-reflect / annotations | 环境中不存在时             |
-| nashorn-core + ASM                           | enableScript = true |
-| blink-libraries 声明的依赖                        | 始终                  |
+| 依赖                                           | 条件                    |
+|----------------------------------------------|-----------------------|
+| kotlin-stdlib / kotlin-reflect / annotations | 环境中不存在时               |
+| nashorn-core + ASM                           | enableScript = true   |
+| aria                                         | enableAria = true     |
+| asteroid-nms                                 | enableAsteroid = true |
+| blink-libraries 声明的依赖                        | 始终                    |
 
 下载目录：`plugins/<PluginName>/libs/`
 
@@ -565,5 +658,8 @@ my-plugin/
     ├── listener/
     │   └── JoinListener.kt   @AutoListener
     └── service/
+        ├── ScriptBridge.kt    JS 脚本桥接
+        ├── AriaScriptBridge.kt Aria 脚本桥接
+        ├── NMSBridge.kt       Asteroid NMS 桥接
         └── SomeService.kt
 ```

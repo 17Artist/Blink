@@ -22,6 +22,8 @@ blink {
     authors.set(listOf("17Artist"))
     apiVersion.set("1.20")
     enableScript.set(true)
+    enableAria.set(true)
+    enableAsteroid.set(true)
     packageName.set("com.example.testplugin")
     libraries.set(listOf("com.google.code.gson:gson:2.10.1"))
 

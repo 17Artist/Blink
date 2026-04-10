@@ -1,5 +1,7 @@
 package com.example.testplugin
 
+import com.example.testplugin.service.AriaScriptBridge
+import com.example.testplugin.service.NMSBridge
 import com.example.testplugin.service.ScriptBridge
 import com.example.testplugin.service.WelcomeService
 import priv.seventeen.artist.blink.bukkitPlugin
@@ -28,6 +30,20 @@ object Bootstrap {
         }
     }
 
+    @Awake(LifeCycle.ENABLE, priority = 10)
+    fun initAria() {
+        if (Settings.instance.enableAria) {
+            AriaScriptBridge.init()
+        }
+    }
+
+    @Awake(LifeCycle.ENABLE, priority = 10)
+    fun initAsteroid() {
+        if (Settings.instance.enableAsteroid) {
+            NMSBridge.init()
+        }
+    }
+
     @Awake(LifeCycle.ACTIVE)
     fun onActive() {
         bukkitPlugin.logger.info("Server fully started, ${Bukkit.getOnlinePlayers().size} players online")
@@ -36,6 +52,7 @@ object Bootstrap {
     @Awake(LifeCycle.DISABLE)
     fun onDisable() {
         ScriptBridge.shutdown()
+        AriaScriptBridge.shutdown()
         bukkitPlugin.logger.info("BlinkTest disabled")
     }
 }
