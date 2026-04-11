@@ -71,13 +71,14 @@ class BlinkPlugin : Plugin<Project> {
 
     private fun configureAsteroid(project: Project) {
         val asteroidVersion = project.findProperty("asteroidVersion")?.toString() ?: "1.0.1"
-        val depNotation = "priv.seventeen.artist.asteroid:asteroid-api:$asteroidVersion"
-        val compileOnly = project.configurations.findByName("compileOnly")
-        if (compileOnly != null) {
-            project.dependencies.add("compileOnly", depNotation)
-            project.logger.lifecycle("[Blink] Asteroid NMS 桥接已添加 (compileOnly): $depNotation")
+        val depNotation = "priv.seventeen.artist.asteroid:asteroid-nms:$asteroidVersion"
+        // implementation: 打包进 shadow jar，Paper 需要在加载阶段识别 NMS 类
+        val impl = project.configurations.findByName("implementation")
+        if (impl != null) {
+            project.dependencies.add("implementation", depNotation)
+            project.logger.lifecycle("[Blink] Asteroid NMS 桥接已添加 (implementation): $depNotation")
         } else {
-            project.logger.warn("[Blink] 未找到 compileOnly 配置，无法添加 Asteroid 依赖")
+            project.logger.warn("[Blink] 未找到 implementation 配置，无法添加 Asteroid 依赖")
         }
     }
 
@@ -130,7 +131,8 @@ class BlinkPlugin : Plugin<Project> {
                     val pkgName = extension.packageName.get().ifEmpty { project.group.toString() }
                     if (pkgName.isNotEmpty()) {
                         relocateMethod.invoke(task, "priv.seventeen.artist.blink", "$pkgName.blink")
-                        // Aria 不再 relocate，运行时由 DependencyLoader 独立下载注入
+                        // Aria 运行时由 DependencyLoader 独立下载注入，不 relocate
+                        // Asteroid 打包进 shadow jar 但不 relocate（NMSLoader 通过反射加载实现类）
                     }
                 } catch (_: Exception) {
                     project.logger.warn("[Blink] 配置 Shadow relocate 失败，请手动配置")

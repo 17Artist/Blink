@@ -104,10 +104,6 @@ class BytecodeGenerator(private val targetPkg: String) {
         }
 
         if (enableAsteroid) {
-            mv.visitFieldInsn(GETSTATIC, DEP_LOADER, "INSTANCE", "L$DEP_LOADER;")
-            mv.visitVarInsn(ALOAD, 0)
-            mv.visitMethodInsn(INVOKEVIRTUAL, DEP_LOADER, "loadAsteroid", "(L$JAVA_PLUGIN;)V", false)
-
             mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
             mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "init", "()V", false)
         }

@@ -43,7 +43,7 @@ rootProject.name = "MyPlugin"
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "1.8.22"
-    id("priv.seventeen.artist.blink") version "1.0.4"
+    id("priv.seventeen.artist.blink") version "1.0.5"
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
@@ -62,7 +62,7 @@ blink {
 }
 
 dependencies {
-    implementation("priv.seventeen.artist.blink:blink-common:1.0.4")
+    implementation("priv.seventeen.artist.blink:blink-common:1.0.5")
     compileOnly("org.spigotmc:spigot-api:1.21-R0.1-SNAPSHOT")
 }
 
@@ -421,13 +421,14 @@ disable 时由生成的主类自动调用 `AsteroidManager.shutdown()`。
 
 onLoad 阶段自动下载：
 
-| 依赖                                           | 条件                    |
-|----------------------------------------------|-----------------------|
-| kotlin-stdlib / kotlin-reflect / annotations | 环境中不存在时               |
-| nashorn-core + ASM                           | enableScript = true   |
-| aria                                         | enableAria = true     |
-| asteroid-nms                                 | enableAsteroid = true |
-| blink-libraries 声明的依赖                        | 始终                    |
+| 依赖                                           | 条件                   |
+|----------------------------------------------|----------------------|
+| kotlin-stdlib / kotlin-reflect / annotations | 环境中不存在时              |
+| nashorn-core + ASM                           | enableScript = true  |
+| aria                                         | enableAria = true    |
+| blink-libraries 声明的依赖                        | 始终                   |
+
+`enableAsteroid = true` 时 asteroid-nms 通过 Shadow 打包进 jar（Paper 需要在加载阶段识别 NMS 类），不走运行时下载。
 
 下载目录：`plugins/<PluginName>/libs/`
 
