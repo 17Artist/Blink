@@ -132,7 +132,10 @@ class BlinkPlugin : Plugin<Project> {
                     if (pkgName.isNotEmpty()) {
                         relocateMethod.invoke(task, "priv.seventeen.artist.blink", "$pkgName.blink")
                         // Aria 运行时由 DependencyLoader 独立下载注入，不 relocate
-                        // Asteroid 打包进 shadow jar 但不 relocate（NMSLoader 通过反射加载实现类）
+                        // Asteroid 打包进 shadow jar，relocate 会自动处理字符串常量中的包名
+                        if (extension.enableAsteroid.get()) {
+                            relocateMethod.invoke(task, "priv.seventeen.artist.asteroid", "$pkgName.asteroid")
+                        }
                     }
                 } catch (_: Exception) {
                     project.logger.warn("[Blink] 配置 Shadow relocate 失败，请手动配置")
@@ -241,8 +244,11 @@ class BlinkPlugin : Plugin<Project> {
             keeps.addAll(extension.obfuscateKeep.get())
             addListProperty(extClass, proteusExt, "keepClasses", keeps)
 
-            // exclude — Blink 运行时 + META-INF + 用户自定义
+            // exclude — Blink 运行时 + Asteroid NMS + META-INF + 用户自定义
             val excludes = mutableListOf("META-INF/**", "$blinkPkg.**")
+            if (extension.enableAsteroid.get()) {
+                excludes.add("$pkgName.asteroid.**")
+            }
             excludes.addAll(extension.obfuscateExclude.get())
             addListProperty(extClass, proteusExt, "exclude", excludes)
 
