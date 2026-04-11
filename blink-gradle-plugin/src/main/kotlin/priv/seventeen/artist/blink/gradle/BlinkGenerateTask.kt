@@ -42,6 +42,7 @@ abstract class BlinkGenerateTask : DefaultTask() {
     @get:Input abstract val enableAsteroid: Property<Boolean>
     @get:Input abstract val foliaSupported: Property<Boolean>
     @get:Input abstract val packageName: Property<String>
+    @get:Input abstract val logPrefix: Property<String>
 
     @TaskAction
     fun generate() {
@@ -152,6 +153,11 @@ abstract class BlinkGenerateTask : DefaultTask() {
         if (libs.isNotEmpty()) {
             sb.appendLine("blink-libraries:")
             libs.forEach { sb.appendLine("  - '$it'") }
+        }
+
+        val prefix = logPrefix.get()
+        if (prefix.isNotEmpty()) {
+            sb.appendLine("blink-log-prefix: '$prefix'")
         }
 
         return sb.toString()

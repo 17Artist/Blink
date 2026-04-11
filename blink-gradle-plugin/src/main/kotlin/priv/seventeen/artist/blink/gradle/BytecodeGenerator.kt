@@ -32,6 +32,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         private const val SCRIPT_MANAGER = "priv/seventeen/artist/blink/script/ScriptManager"
         private const val ARIA_SCRIPT_MANAGER = "priv/seventeen/artist/blink/script/AriaScriptManager"
         private const val ASTEROID_MANAGER = "priv/seventeen/artist/blink/nms/AsteroidManager"
+        private const val BLINK_LOG = "priv/seventeen/artist/blink/BlinkLog"
         private const val DEP_LOADER = "priv/seventeen/artist/blink/loader/DependencyLoader"
 
         private const val JAVA_PLUGIN = "org/bukkit/plugin/java/JavaPlugin"
@@ -74,6 +75,9 @@ class BytecodeGenerator(private val targetPkg: String) {
 
         mv.visitVarInsn(ALOAD, 0)
         mv.visitMethodInsn(INVOKESTATIC, BLINK_KT, "setBukkitPlugin", "(L$JAVA_PLUGIN;)V", false)
+
+        mv.visitFieldInsn(GETSTATIC, BLINK_LOG, "INSTANCE", "L$BLINK_LOG;")
+        mv.visitMethodInsn(INVOKEVIRTUAL, BLINK_LOG, "initPrefix", "()V", false)
 
         mv.visitFieldInsn(GETSTATIC, DEP_LOADER, "INSTANCE", "L$DEP_LOADER;")
         mv.visitVarInsn(ALOAD, 0)

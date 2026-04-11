@@ -111,6 +111,7 @@ class BlinkPlugin : Plugin<Project> {
             task.enableAsteroid.set(extension.enableAsteroid)
             task.foliaSupported.set(extension.foliaSupported)
             task.packageName.set(extension.packageName)
+            task.logPrefix.set(extension.logPrefix)
         }
 
         project.tasks.withType(Jar::class.java).configureEach {

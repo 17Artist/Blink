@@ -16,75 +16,62 @@
 package priv.seventeen.artist.blink
 
 import org.bukkit.Bukkit
+import org.bukkit.configuration.file.YamlConfiguration
 import java.util.logging.Level
 
 /**
  * Blink 统一控制台日志输出。
  *
- * <p>蓝色 {@code ◆ Blink} 前缀 + 白色信息文本，错误红色，成功绿色，警告黄色。
- * 通过 {@link Bukkit#getConsoleSender()} 直接发送带颜色码的消息，
- * Bukkit 未初始化时自动回退到 {@code System.out}。
+ * <p>前缀可通过 blink DSL 的 {@code logPrefix} 自定义，运行时从 plugin.yml 的
+ * {@code blink-log-prefix} 字段读取。未设置时使用默认的 {@code ◆ Blink} 前缀。
  */
 object BlinkLog {
 
-    private const val PREFIX = "\u00A79\u25C6 \u00A7bBlink \u00A78| "
+    private const val DEFAULT_PREFIX = "\u00A79\u25C6 \u00A7bBlink \u00A78| "
     private val COLOR_PATTERN = Regex("\u00A7[0-9a-fk-or]")
 
+    @Volatile
+    private var prefix: String = DEFAULT_PREFIX
+
     /**
-     * 输出普通信息（白色）。
-     *
-     * @param message 日志内容
+     * 初始化日志前缀。由框架在 onLoad 阶段自动调用。
      */
+    fun initPrefix() {
+        try {
+            val yml = bukkitPlugin.getResource("plugin.yml") ?: return
+            val yaml = YamlConfiguration()
+            yaml.loadFromString(yml.bufferedReader().use { it.readText() })
+            val custom = yaml.getString("blink-log-prefix")
+            if (!custom.isNullOrEmpty()) {
+                // 用户自定义前缀，追加分隔符
+                prefix = "$custom \u00A78| "
+            }
+        } catch (_: Exception) { }
+    }
+
     fun info(message: String) {
-        send("$PREFIX\u00A7f$message")
+        send("$prefix\u00A7f$message")
     }
 
-    /**
-     * 输出成功信息（绿色）。
-     *
-     * @param message 日志内容
-     */
     fun success(message: String) {
-        send("$PREFIX\u00A7a$message")
+        send("$prefix\u00A7a$message")
     }
 
-    /**
-     * 输出警告信息（黄色）。
-     *
-     * @param message 日志内容
-     */
     fun warn(message: String) {
-        send("$PREFIX\u00A7e$message")
+        send("$prefix\u00A7e$message")
     }
 
-    /**
-     * 输出错误信息（红色）。
-     *
-     * @param message 日志内容
-     */
     fun error(message: String) {
-        send("$PREFIX\u00A7c$message")
+        send("$prefix\u00A7c$message")
     }
 
-    /**
-     * 输出错误信息（红色）并打印异常堆栈。
-     * 堆栈通过 {@link java.util.logging.Logger} 输出，避免控制台刷屏。
-     *
-     * @param message   日志内容
-     * @param throwable 异常
-     */
     fun error(message: String, throwable: Throwable) {
-        send("$PREFIX\u00A7c$message")
+        send("$prefix\u00A7c$message")
         bukkitPlugin.logger.log(Level.WARNING, "", throwable)
     }
 
-    /**
-     * 输出次要信息（灰色），用于下载进度等辅助提示。
-     *
-     * @param message 日志内容
-     */
     fun detail(message: String) {
-        send("$PREFIX\u00A77$message")
+        send("$prefix\u00A77$message")
     }
 
     private fun send(message: String) {

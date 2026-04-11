@@ -35,6 +35,8 @@ abstract class BlinkExtension {
 
     abstract val packageName: Property<String>
 
+    abstract val logPrefix: Property<String>
+
     abstract val enableAria: Property<Boolean>
 
     abstract val enableAsteroid: Property<Boolean>
@@ -60,6 +62,7 @@ abstract class BlinkExtension {
         enableAsteroid.convention(false)
         foliaSupported.convention(false)
         packageName.convention("")
+        logPrefix.convention("")
         obfuscate.convention(false)
         obfuscateKeep.convention(emptyList())
         obfuscateExclude.convention(emptyList())

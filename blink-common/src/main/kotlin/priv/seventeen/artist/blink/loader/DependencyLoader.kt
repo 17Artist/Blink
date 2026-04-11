@@ -202,16 +202,19 @@ object DependencyLoader {
     }
 
     private fun tryDownload(dep: Dependency, repos: List<String>, target: File, @Suppress("UNUSED_PARAMETER") plugin: JavaPlugin): Boolean {
+        val errors = mutableListOf<String>()
         for (repo in repos) {
             val repoBase = repo.trimEnd('/')
-            val url = "$repoBase/${dep.path}"
             try {
-                BlinkLog.detail("  尝试: $repoBase")
-                downloadFile(url, target)
+                downloadFile("$repoBase/${dep.path}", target)
                 return true
             } catch (e: Exception) {
-                BlinkLog.warn("  $repoBase 失败: ${e.message}")
+                errors.add("  $repoBase: ${e.message}")
             }
+        }
+        // 全部失败，输出所有尝试过的仓库
+        for (err in errors) {
+            BlinkLog.warn(err)
         }
         return false
     }

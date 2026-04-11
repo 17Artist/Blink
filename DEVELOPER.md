@@ -43,7 +43,7 @@ rootProject.name = "MyPlugin"
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "1.8.22"
-    id("priv.seventeen.artist.blink") version "1.0.3"
+    id("priv.seventeen.artist.blink") version "1.0.4"
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
@@ -62,7 +62,7 @@ blink {
 }
 
 dependencies {
-    implementation("priv.seventeen.artist.blink:blink-common:1.0.3")
+    implementation("priv.seventeen.artist.blink:blink-common:1.0.4")
     compileOnly("org.spigotmc:spigot-api:1.21-R0.1-SNAPSHOT")
 }
 
@@ -108,6 +108,7 @@ blink {
     enableAria.set(false)
     enableAsteroid.set(false)
     packageName.set("com.example.myplugin")
+    logPrefix.set("")                                   // 自定义日志前缀，如 "§1♦ §bMyPlugin"，空则使用默认
     obfuscate.set(false)
     obfuscateKeep.set(listOf())
     obfuscateExclude.set(listOf())
