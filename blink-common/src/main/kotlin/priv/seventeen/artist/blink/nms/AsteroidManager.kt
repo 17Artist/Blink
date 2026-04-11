@@ -25,8 +25,8 @@ import priv.seventeen.artist.blink.BlinkLog
  *
  * <p>blink-common 通过 compileOnly 依赖 asteroid-api，运行时由 DependencyLoader.loadAsteroid() 自动下载
  * asteroid-nms (shadow jar) 并注入 classpath。
- * 当 {@code enableAsteroid = true} 时，生成的主类在 onLoad 先调用 loadAsteroid() 下载注入，
- * 再调用 {@link #init}，onDisable 调用 {@link #shutdown}。
+ * 当 {@code enableAsteroid = true} 时，生成的主类在 onLoad 调用 {@link #init} 加载 NMS 实现，
+ * 在 onEnable 调用 {@link #enable} 注册数据包监听，onDisable 调用 {@link #shutdown}。
  */
 object AsteroidManager {
 
@@ -37,19 +37,36 @@ object AsteroidManager {
     val isAvailable: Boolean get() = initialized
 
     /**
-     * 初始化 Asteroid NMS 桥接。
+     * 初始化 Asteroid NMS 桥接（加载 NMS 实现，不注册事件）。
      * 由 BlinkGeneratedMain.onLoad() 自动调用，不需要手动调用。
-     *
-     * @param plugin 插件实例，用于注册数据包监听等
      */
-    fun init(plugin: JavaPlugin) {
+    fun init() {
         try {
-            NMSLoader.load(plugin)
+            NMSLoader.load()
             initialized = true
             BlinkLog.success("Asteroid NMS 桥接已初始化 (MC ${AsteroidAPI.getMcVersion()})")
         } catch (e: Exception) {
             BlinkLog.error("Asteroid 初始化失败", e)
             initialized = false
+        }
+    }
+
+    /**
+     * 注册 Asteroid 数据包事件监听。
+     * 由 BlinkGeneratedMain.onEnable() 自动调用，不需要手动调用。
+     *
+     * @param plugin 插件实例，用于注册事件监听
+     */
+    fun enable(plugin: JavaPlugin) {
+        if (!initialized) return
+        try {
+            val handler = AsteroidAPI.getPacketHandler()
+            // registerEvents 定义在 PacketHandlerImpl（实现类），不在接口上
+            val method = handler.javaClass.getMethod("registerEvents", org.bukkit.plugin.Plugin::class.java)
+            method.invoke(handler, plugin)
+            BlinkLog.success("Asteroid 数据包监听已注册")
+        } catch (e: Exception) {
+            BlinkLog.error("Asteroid 数据包监听注册失败", e)
         }
     }
 

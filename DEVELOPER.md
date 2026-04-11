@@ -43,7 +43,7 @@ rootProject.name = "MyPlugin"
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "1.8.22"
-    id("priv.seventeen.artist.blink") version "1.0.0"
+    id("priv.seventeen.artist.blink") version "1.0.3"
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
@@ -62,7 +62,7 @@ blink {
 }
 
 dependencies {
-    implementation("priv.seventeen.artist.blink:blink-common:1.0.0")
+    implementation("priv.seventeen.artist.blink:blink-common:1.0.3")
     compileOnly("org.spigotmc:spigot-api:1.21-R0.1-SNAPSHOT")
 }
 

@@ -49,7 +49,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         cw.visit(V17, ACC_PUBLIC or ACC_SUPER, mainClass, null, JAVA_PLUGIN, null)
         generateConstructor(cw, JAVA_PLUGIN)
         generateOnLoad(cw, mainClass, enableScript, enableAria, enableAsteroid)
-        generateOnEnable(cw, mainClass)
+        generateOnEnable(cw, mainClass, enableAsteroid)
         generateOnDisable(cw, enableScript, enableAria, enableAsteroid)
         cw.visitEnd()
         return cw.toByteArray()
@@ -105,8 +105,7 @@ class BytecodeGenerator(private val targetPkg: String) {
             mv.visitMethodInsn(INVOKEVIRTUAL, DEP_LOADER, "loadAsteroid", "(L$JAVA_PLUGIN;)V", false)
 
             mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
-            mv.visitVarInsn(ALOAD, 0)
-            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "init", "(L$JAVA_PLUGIN;)V", false)
+            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "init", "()V", false)
         }
 
         mv.visitMethodInsn(INVOKESTATIC, "$targetPkg/BlinkGeneratedLifeCycle", "registerAll", "()V", false)
@@ -120,11 +119,17 @@ class BytecodeGenerator(private val targetPkg: String) {
         mv.visitEnd()
     }
 
-    private fun generateOnEnable(cw: ClassWriter, mainClass: String) {
+    private fun generateOnEnable(cw: ClassWriter, mainClass: String, enableAsteroid: Boolean) {
         val mv = cw.visitMethod(ACC_PUBLIC, "onEnable", "()V", null, null)
         mv.visitCode()
 
         mv.visitMethodInsn(INVOKESTATIC, "$targetPkg/BlinkGeneratedEvents", "registerAll", "()V", false)
+
+        if (enableAsteroid) {
+            mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
+            mv.visitVarInsn(ALOAD, 0)
+            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "enable", "(L$JAVA_PLUGIN;)V", false)
+        }
 
         mv.visitFieldInsn(GETSTATIC, LIFECYCLE_MANAGER, "INSTANCE", "L$LIFECYCLE_MANAGER;")
         mv.visitFieldInsn(GETSTATIC, LIFECYCLE_ENUM, "ENABLE", "L$LIFECYCLE_ENUM;")
