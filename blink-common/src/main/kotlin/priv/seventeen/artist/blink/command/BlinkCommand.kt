@@ -114,15 +114,15 @@ class BlinkCommand(name: String, vararg aliases: String)
     }
 
     private fun sendHelp(s: CommandSender, l: String) {
-        s.sendMessage("§e§l===== /$l =====")
-        groups.forEach { (n, g) -> s.sendMessage("  §6/$l $n §7- ${g.groupDescription}") }
-        rootCommands.forEach { (n, c) -> s.sendMessage("  §6/$l $n §7- ${c.description}") }
+        s.sendMessage("§7/$l §f命令列表:")
+        groups.forEach { (n, g) -> s.sendMessage("  §f/$l $n §7- ${g.groupDescription}") }
+        rootCommands.forEach { (n, c) -> s.sendMessage("  §f/$l $n §7- ${c.description}") }
     }
     private fun sendGroupHelp(s: CommandSender, l: String, sub: String, g: BlinkCommandGroup) {
-        s.sendMessage("§e§l===== /$l $sub =====")
+        s.sendMessage("§7/$l $sub §f命令列表:")
         g.commands.forEach { (n, c) ->
-            val ah = c.args.joinToString(" ") { if (it.startsWith("?")) "§7[${it.substring(1)}]" else "§7<§6$it§7>" }
-            s.sendMessage("  §6/$l $sub $n $ah §7- ${c.description}")
+            val ah = c.args.joinToString(" ") { if (it.startsWith("?")) "§7[${it.substring(1)}]" else "§7<§f$it§7>" }
+            s.sendMessage("  §f/$l $sub $n $ah §7- ${c.description}")
         }
     }
 }
