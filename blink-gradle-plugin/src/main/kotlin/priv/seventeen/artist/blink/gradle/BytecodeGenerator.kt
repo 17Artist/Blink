@@ -319,6 +319,15 @@ class BytecodeGenerator(private val targetPkg: String) {
                 "(L$LISTENER;L$EVENT_CLASS;)V", null, null)
             lambdaMv.visitCode()
 
+            // instanceof 守卫：事件类型不匹配时直接返回
+            // 防止父类 HandlerList 分发不相关的子类/父类事件导致 ClassCastException
+            val skipLabel = org.objectweb.asm.Label()
+            lambdaMv.visitVarInsn(ALOAD, 1)
+            lambdaMv.visitTypeInsn(INSTANCEOF, entry.eventTypeInternal)
+            lambdaMv.visitJumpInsn(IFNE, skipLabel)
+            lambdaMv.visitInsn(RETURN)
+            lambdaMv.visitLabel(skipLabel)
+
             lambdaMv.visitVarInsn(ALOAD, 1)
             lambdaMv.visitTypeInsn(CHECKCAST, entry.eventTypeInternal)
 
