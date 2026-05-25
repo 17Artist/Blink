@@ -1,6 +1,6 @@
 plugins {
     kotlin("jvm") version "1.8.22"
-    id("priv.seventeen.artist.blink") version "1.0.7"
+    id("priv.seventeen.artist.blink") version "1.2.0"
     id("com.github.johnrengelman.shadow") version "8.1.1"
     id("priv.seventeen.artist.proteus") version "1.0.10"
 }
@@ -9,6 +9,7 @@ group = "com.example.testplugin"
 version = "1.0.0"
 
 repositories {
+    mavenLocal()
     maven("https://repo.arcartx.com/repository/maven-public/")
     mavenCentral()
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots/")
@@ -128,7 +129,7 @@ blink {
 // }
 
 dependencies {
-    implementation("priv.seventeen.artist.blink:blink-common:1.0.7")
+    implementation("priv.seventeen.artist.blink:blink-common:1.2.0")
     compileOnly("org.spigotmc:spigot-api:1.20.4-R0.1-SNAPSHOT")
     compileOnly("com.google.code.gson:gson:2.10.1")
 }

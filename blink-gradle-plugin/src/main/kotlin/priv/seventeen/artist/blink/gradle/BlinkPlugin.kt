@@ -57,9 +57,9 @@ class BlinkPlugin : Plugin<Project> {
     }
 
     private fun configureAria(project: Project) {
-        val ariaVersion = project.findProperty("ariaVersion")?.toString() ?: "1.0.1"
+        val ariaVersion = resolveLatestAriaVersion(project)
         val depNotation = "priv.seventeen.artist.aria:aria:$ariaVersion"
-        // compileOnly: 编译时可用，运行时由 DependencyLoader 自动下载注入
+        // compileOnly: 编译时可用，运行时由 AriaSharedHost 加载到全局共享 ClassLoader
         val compileOnly = project.configurations.findByName("compileOnly")
         if (compileOnly != null) {
             project.dependencies.add("compileOnly", depNotation)
@@ -67,6 +67,49 @@ class BlinkPlugin : Plugin<Project> {
         } else {
             project.logger.warn("[Blink] 未找到 compileOnly 配置，无法添加 Aria 依赖")
         }
+    }
+
+    /**
+     * 解析仓库中 Aria 的最新 release 版本。
+     * 优先级：仓库 maven-metadata 的 <release> > <latest> > gradle.properties.ariaVersion > 硬编码兜底。
+     */
+    private fun resolveLatestAriaVersion(project: Project): String {
+        val repos = listOf(
+            "https://repo.arcartx.com/repository/maven-public/",
+            "https://maven.aliyun.com/repository/central",
+            "https://repo1.maven.org/maven2",
+            "https://repo.huaweicloud.com/repository/maven"
+        )
+        val releaseRegex = Regex("<release>([^<]+)</release>")
+        val latestRegex = Regex("<latest>([^<]+)</latest>")
+        for (repo in repos) {
+            val base = repo.trimEnd('/')
+            val url = "$base/priv/seventeen/artist/aria/aria/maven-metadata.xml"
+            try {
+                val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                    connectTimeout = 5000
+                    readTimeout = 10000
+                    instanceFollowRedirects = true
+                }
+                if (conn.responseCode != 200) {
+                    conn.disconnect()
+                    continue
+                }
+                val text = conn.inputStream.bufferedReader().use { it.readText() }
+                conn.disconnect()
+                val v = releaseRegex.find(text)?.groupValues?.getOrNull(1)
+                    ?: latestRegex.find(text)?.groupValues?.getOrNull(1)
+                if (!v.isNullOrBlank()) {
+                    project.logger.lifecycle("[Blink] Aria 版本解析: ${v.trim()} (latest from $base)")
+                    return v.trim()
+                }
+            } catch (_: Exception) {
+                // try next repo
+            }
+        }
+        val fallback = project.findProperty("ariaVersion")?.toString() ?: "1.1.1"
+        project.logger.lifecycle("[Blink] Aria 版本解析: $fallback (fallback, 仓库不可达)")
+        return fallback
     }
 
     private fun configureAsteroid(project: Project) {

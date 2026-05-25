@@ -58,26 +58,15 @@ object DependencyLoader {
         Dependency("org.ow2.asm", "asm-util", "9.7.1")
     )
 
-    private val ARIA_DEPENDENCIES = listOf(
-        Dependency("priv.seventeen.artist.aria", "aria", "1.0.1")
-    )
-
-    fun loadAria(plugin: JavaPlugin) {
-        val libsDir = File(plugin.dataFolder, "libs")
-        libsDir.mkdirs()
-
-        val repositories = loadRepositories(plugin)
-        val classLoader = plugin.javaClass.classLoader
-
-        for (dep in ARIA_DEPENDENCIES) {
-            val file = File(libsDir, dep.fileName)
-            if (file.exists()) {
-                BlinkLog.detail("${dep.fileName} 已存在，直接加载")
-                tryInject(classLoader, file, plugin)
-                continue
-            }
-            downloadAndInject(dep, libsDir, repositories, classLoader, plugin)
-        }
+    /**
+     * @deprecated 自 1.2.0 起 Aria 由 [priv.seventeen.artist.blink.aria.AriaSharedHost]
+     * 统一加载到全局共享 ClassLoader，不再注入到每个插件的 PluginClassLoader。
+     * 保留空实现以维持字节码层面的二进制兼容。
+     */
+    @Deprecated("Aria 现由 AriaSharedHost 共享加载，请改调 AriaScriptManager.init(plugin)。",
+        ReplaceWith("priv.seventeen.artist.blink.script.AriaScriptManager.init(plugin)"))
+    fun loadAria(@Suppress("UNUSED_PARAMETER") plugin: JavaPlugin) {
+        // no-op: 兼容旧字节码生成路径
     }
 
     fun loadNashorn(plugin: JavaPlugin): List<File> {
@@ -177,6 +166,38 @@ object DependencyLoader {
         if (!configFile.exists()) return DEFAULT_REPOSITORIES
         val yaml = YamlConfiguration.loadConfiguration(configFile)
         return yaml.getStringList("repositories").takeIf { it.isNotEmpty() } ?: DEFAULT_REPOSITORIES
+    }
+
+    /** 暴露给 [priv.seventeen.artist.blink.aria.AriaSharedHost] 等内部模块复用。 */
+    internal fun loadRepositoriesInternal(plugin: JavaPlugin): List<String> = loadRepositories(plugin)
+
+    /**
+     * 下载单个依赖到指定文件。复用 [tryDownload] 的多仓库重试逻辑。
+     * 仅供本模块内部使用（如 [priv.seventeen.artist.blink.aria.AriaSharedHost]）。
+     */
+    internal fun downloadDependencyInternal(dep: Dependency, target: File, plugin: JavaPlugin): Boolean {
+        target.parentFile?.mkdirs()
+        val repos = loadRepositories(plugin)
+        BlinkLog.info("正在下载 ${dep.group}:${dep.artifact}:${dep.version} 到 ${target.absolutePath}")
+        val ok = tryDownload(dep, repos, target, plugin)
+        if (ok) BlinkLog.success("下载完成: ${target.name}")
+        return ok
+    }
+
+    /** 简单 GET 文本资源，用于读取 maven-metadata.xml。失败返回 null。 */
+    internal fun fetchTextInternal(url: String): String? {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        return try {
+            conn.connectTimeout = CONNECT_TIMEOUT
+            conn.readTimeout = READ_TIMEOUT
+            conn.instanceFollowRedirects = true
+            if (conn.responseCode != 200) return null
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } catch (_: Exception) {
+            null
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun tryDownload(dep: Dependency, repos: List<String>, target: File, @Suppress("UNUSED_PARAMETER") plugin: JavaPlugin): Boolean {

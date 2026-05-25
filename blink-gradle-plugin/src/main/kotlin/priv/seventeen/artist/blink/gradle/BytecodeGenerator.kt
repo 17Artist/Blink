@@ -95,12 +95,11 @@ class BytecodeGenerator(private val targetPkg: String) {
         }
 
         if (enableAria) {
-            mv.visitFieldInsn(GETSTATIC, DEP_LOADER, "INSTANCE", "L$DEP_LOADER;")
-            mv.visitVarInsn(ALOAD, 0)
-            mv.visitMethodInsn(INVOKEVIRTUAL, DEP_LOADER, "loadAria", "(L$JAVA_PLUGIN;)V", false)
-
+            // 自 1.2.0 起，Aria 由 AriaSharedHost 统一加载到全局共享 ClassLoader，
+            // 不再使用 DependencyLoader.loadAria 注入到本插件 PluginClassLoader。
             mv.visitFieldInsn(GETSTATIC, ARIA_SCRIPT_MANAGER, "INSTANCE", "L$ARIA_SCRIPT_MANAGER;")
-            mv.visitMethodInsn(INVOKEVIRTUAL, ARIA_SCRIPT_MANAGER, "init", "()V", false)
+            mv.visitVarInsn(ALOAD, 0)
+            mv.visitMethodInsn(INVOKEVIRTUAL, ARIA_SCRIPT_MANAGER, "init", "(L$JAVA_PLUGIN;)V", false)
         }
 
         if (enableAsteroid) {
