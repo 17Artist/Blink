@@ -20,12 +20,29 @@ import java.io.File
 
 class AnnotationScanner {
 
+    /**
+     * 描述如何在生成的字节码中获得方法接收者实例。
+     *
+     * <p>对于 Kotlin {@code companion object}，外层类（owner 的 EnclosingClass）有一个静态字段
+     * （默认名为 {@code Companion}）持有 companion 单例；方法所在类（{@code Owner$Companion}）
+     * 没有 {@code INSTANCE} 字段。生成 lambda 调用方法时需要从外层类拿这个字段。
+     */
+    data class CompanionAccess(
+        /** 持有 companion 实例的外层类 internal name，如 {@code com/foo/Bar} */
+        val outerInternal: String,
+        /** 外层类中持有 companion 实例的静态字段名，通常为 {@code Companion}（用户可重命名） */
+        val fieldName: String,
+        /** 字段描述符，如 {@code Lcom/foo/Bar$Companion;} */
+        val fieldDesc: String
+    )
+
     data class AwakeEntry(
         val ownerInternal: String,
         val methodName: String,
         val methodDesc: String,
         val isStatic: Boolean,
         val hasInstance: Boolean,
+        val companionAccess: CompanionAccess?,
         val lifeCycle: String,
         val priority: Int
     )
@@ -36,6 +53,7 @@ class AnnotationScanner {
         val methodDesc: String,
         val isStatic: Boolean,
         val hasInstance: Boolean,
+        val companionAccess: CompanionAccess?,
         val eventTypeInternal: String,
         val priority: String,
         val ignoreCancelled: Boolean
@@ -44,17 +62,64 @@ class AnnotationScanner {
     val awakeEntries = mutableListOf<AwakeEntry>()
     val listenerEntries = mutableListOf<ListenerEntry>()
 
+    /**
+     * 第一遍扫描收集到的 companion 关系：key 为 companion 内部类的 internal name，
+     * value 为如何从外层类访问到该 companion 实例。
+     */
+    private val companionAccessMap = mutableMapOf<String, CompanionAccess>()
+
     fun scan(classesRoot: File) {
-        classesRoot.walk()
+        val classFiles = classesRoot.walk()
             .filter { it.isFile && it.extension == "class" }
             .filter { !it.nameWithoutExtension.startsWith("BlinkGenerated") }
-            .forEach { scanClassFile(it) }
+            .toList()
+
+        // 第一遍：发现所有 companion 类与外层类持有它的字段
+        classFiles.forEach { collectCompanionRelations(it) }
+        // 第二遍：扫描 @Awake / @AutoListener
+        classFiles.forEach { scanClassFile(it) }
+    }
+
+    private fun collectCompanionRelations(file: File) {
+        val reader = ClassReader(file.readBytes())
+        reader.accept(CompanionRelationVisitor(), ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES)
     }
 
     private fun scanClassFile(file: File) {
         val reader = ClassReader(file.readBytes())
         val visitor = BlinkClassVisitor()
         reader.accept(visitor, ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES)
+    }
+
+    /**
+     * 第一遍 visitor：记录每个外层类的 static final 字段中类型为内部类（{@code $}） 的引用。
+     * Kotlin companion 编译为：{@code static final Foo$Companion Companion} 字段（字段名可由
+     * 用户重命名，如 {@code companion object MyCompanion} 会得到 {@code static final
+     * Foo$MyCompanion MyCompanion}）。
+     */
+    private inner class CompanionRelationVisitor : ClassVisitor(Opcodes.ASM9) {
+        private var ownerClassName = ""
+
+        override fun visit(version: Int, access: Int, name: String, signature: String?, superName: String?, interfaces: Array<String>?) {
+            ownerClassName = name
+        }
+
+        override fun visitField(access: Int, name: String, descriptor: String, signature: String?, value: Any?): FieldVisitor? {
+            val isStatic = (access and Opcodes.ACC_STATIC) != 0
+            val isFinal = (access and Opcodes.ACC_FINAL) != 0
+            // 只考虑 public/private static final 字段；类型必须是引用类型且形如 LOuter$X;
+            if (!isStatic || !isFinal) return null
+            if (!descriptor.startsWith("L") || !descriptor.endsWith(";")) return null
+            val fieldTypeInternal = descriptor.substring(1, descriptor.length - 1)
+            // 字段类型必须是当前类的内部类（companion 总是 nested）
+            if (!fieldTypeInternal.startsWith("$ownerClassName$")) return null
+            // 不要覆盖已记录的（按文件遍历顺序优先保留第一个，正常情况下只会有一个 companion）
+            companionAccessMap.putIfAbsent(
+                fieldTypeInternal,
+                CompanionAccess(ownerClassName, name, descriptor)
+            )
+            return null
+        }
     }
 
     private inner class BlinkClassVisitor : ClassVisitor(Opcodes.ASM9) {
@@ -114,9 +179,10 @@ class AnnotationScanner {
                     System.err.println("[Blink] WARNING: @Awake method $ownerInternal#$methodName has descriptor $methodDesc, expected ()V — skipping")
                     return
                 }
+                val companion = companionAccessMap[ownerInternal]
                 awakeEntries.add(AwakeEntry(
                     ownerInternal, methodName, methodDesc, isStatic,
-                    classVisitor.isObjectSingleton(), lifeCycle, priority
+                    classVisitor.isObjectSingleton(), companion, lifeCycle, priority
                 ))
             }
         }
@@ -139,9 +205,10 @@ class AnnotationScanner {
                     System.err.println("[Blink] WARNING: @AutoListener method $ownerInternal#$methodName has no valid Event parameter — skipping")
                     return
                 }
+                val companion = companionAccessMap[ownerInternal]
                 listenerEntries.add(ListenerEntry(
                     ownerInternal, methodName, methodDesc, isStatic,
-                    classVisitor.isObjectSingleton(), eventType, priority, ignoreCancelled
+                    classVisitor.isObjectSingleton(), companion, eventType, priority, ignoreCancelled
                 ))
             }
         }

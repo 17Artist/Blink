@@ -216,7 +216,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         mv.visitCode()
 
         for ((index, entry) in entries.withIndex()) {
-            if (!entry.isStatic && !entry.hasInstance) continue
+            if (!entry.isStatic && !entry.hasInstance && entry.companionAccess == null) continue
 
             val lambdaName = "lambda\$lifecycle\$$index"
 
@@ -252,11 +252,19 @@ class BytecodeGenerator(private val targetPkg: String) {
 
             val lambdaMv = cw.visitMethod(ACC_PRIVATE or ACC_STATIC or ACC_SYNTHETIC, lambdaName, "()V", null, null)
             lambdaMv.visitCode()
-            if (entry.isStatic) {
-                lambdaMv.visitMethodInsn(INVOKESTATIC, entry.ownerInternal, entry.methodName, "()V", false)
-            } else {
-                lambdaMv.visitFieldInsn(GETSTATIC, entry.ownerInternal, "INSTANCE", "L${entry.ownerInternal};")
-                lambdaMv.visitMethodInsn(INVOKEVIRTUAL, entry.ownerInternal, entry.methodName, "()V", false)
+            when {
+                entry.isStatic -> {
+                    lambdaMv.visitMethodInsn(INVOKESTATIC, entry.ownerInternal, entry.methodName, "()V", false)
+                }
+                entry.companionAccess != null -> {
+                    val ca = entry.companionAccess
+                    lambdaMv.visitFieldInsn(GETSTATIC, ca.outerInternal, ca.fieldName, ca.fieldDesc)
+                    lambdaMv.visitMethodInsn(INVOKEVIRTUAL, entry.ownerInternal, entry.methodName, "()V", false)
+                }
+                else -> {
+                    lambdaMv.visitFieldInsn(GETSTATIC, entry.ownerInternal, "INSTANCE", "L${entry.ownerInternal};")
+                    lambdaMv.visitMethodInsn(INVOKEVIRTUAL, entry.ownerInternal, entry.methodName, "()V", false)
+                }
             }
             lambdaMv.visitInsn(RETURN)
             lambdaMv.visitMaxs(0, 0)
@@ -281,7 +289,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         mv.visitCode()
 
         for ((index, entry) in entries.withIndex()) {
-            if (!entry.isStatic && !entry.hasInstance) continue
+            if (!entry.isStatic && !entry.hasInstance && entry.companionAccess == null) continue
 
             val lambdaName = "lambda\$event\$$index"
 
@@ -332,6 +340,13 @@ class BytecodeGenerator(private val targetPkg: String) {
 
             if (entry.isStatic) {
                 lambdaMv.visitMethodInsn(INVOKESTATIC, entry.ownerInternal, entry.methodName,
+                    "(L${entry.eventTypeInternal};)V", false)
+            } else if (entry.companionAccess != null) {
+                val ca = entry.companionAccess
+                lambdaMv.visitVarInsn(ASTORE, 2)
+                lambdaMv.visitFieldInsn(GETSTATIC, ca.outerInternal, ca.fieldName, ca.fieldDesc)
+                lambdaMv.visitVarInsn(ALOAD, 2)
+                lambdaMv.visitMethodInsn(INVOKEVIRTUAL, entry.ownerInternal, entry.methodName,
                     "(L${entry.eventTypeInternal};)V", false)
             } else {
                 lambdaMv.visitVarInsn(ASTORE, 2)
