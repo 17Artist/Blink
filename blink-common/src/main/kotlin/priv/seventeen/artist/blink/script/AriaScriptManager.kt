@@ -24,25 +24,27 @@ import java.lang.reflect.Method
 /**
  * Aria 脚本引擎管理器（共享中间件入口）。
  *
- * <p>自 Blink 1.2.0 起，本对象不再直接 import 任何 {@code priv.seventeen.artist.aria.*}
- * 类型，所有调用通过 {@link AriaSharedHost} 提供的共享 {@link ClassLoader} 反射执行。
+ * <p>自 Blink 1.3.0 起，Aria 由 {@link AriaSharedHost} 在第一个加载且需要 Aria 的 Blink 插件
+ * onLoad 时部署为独立的 Bukkit 插件 {@code BlinkAriaHost}，所有插件（包括非 Blink 插件）
+ * 共享同一份 Aria 实例。
  *
  * <h3>共享语义</h3>
- * 多个使用 Blink 框架的插件共用同一份 {@code aria.jar}（仅在 JVM 中加载一次），因此：
  * <ul>
- *   <li>{@code Aria.DEFAULT_ENGINE} 是全局唯一实例。</li>
- *   <li>{@code CallableManager.INSTANCE} 是全局唯一实例。任一插件注册到 CallableManager 的
- *       namespace、constructor、object function，对所有 Blink 插件可见。</li>
+ *   <li>{@code Aria.DEFAULT_ENGINE} 全局唯一</li>
+ *   <li>{@code CallableManager.INSTANCE} 全局唯一。任一插件注册到 CallableManager 的
+ *       namespace、constructor、object function 对所有插件可见。</li>
  *   <li>{@code AnnotationRegistry} 同理共享。</li>
  * </ul>
  *
- * <p>需要直接操作 Aria 内部对象（注册自定义 NativeCallable 等）时，通过
- * {@link #sharedClassLoader} 拿到共享 ClassLoader，再用反射 / 自己的 compileOnly 依赖访问 Aria 类型。
- *
  * <h3>API 类型</h3>
- * 由于跨 PluginClassLoader 不能传递 Aria 类型对象，对外公开的方法签名只使用 JDK 中性类型：
- * 输入参数为 {@link String}/{@link Map}/{@link File}，返回值为 {@link Any}（已自动 unwrap 为
+ * 因为本对象不再编译期依赖 Aria（避免 PluginClassLoader 类型耦合），公开方法签名只使用 JDK
+ * 中性类型：输入 {@link String}/{@link Map}/{@link File}，输出 {@link Any}（已 unwrap 为
  * Java 原生类型：String/Number/Boolean/Map/List/null/对象）。
+ *
+ * <h3>非 Blink 插件接入</h3>
+ * 任意 Bukkit 插件可在 plugin.yml 中加 {@code depend: [BlinkAriaHost]}，然后正常 import
+ * {@code priv.seventeen.artist.aria.*} 即可。前提是服务器中至少有一个启用 Aria 的 Blink 插件，
+ * 否则 BlinkAriaHost 不会被部署。
  */
 object AriaScriptManager {
 
