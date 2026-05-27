@@ -62,6 +62,22 @@ internal object AriaSharedHost {
     private const val HOST_PLUGIN_NAME = "BlinkAriaHost"
     private const val HOST_JAR_NAME = "BlinkAriaHost.jar"
 
+    /**
+     * Host 类的 jar entry 路径与 main 类全限定名以 base64 编码内嵌，运行时解码。
+     * 否则 Shadow 插件的 relocate 会把字面量 {@code priv.seventeen.artist.blink.aria.host} 改写成
+     * 用户的 relocate 目标包，导致 jar 内类路径与 class 文件 this_class 不一致，Bukkit 加载失败。
+     */
+    private const val HOST_CLASS_PATH_B64 =
+        "cHJpdi9zZXZlbnRlZW4vYXJ0aXN0L2JsaW5rL2FyaWEvaG9zdC9CbGlua0FyaWFIb3N0UGx1Z2luLmNsYXNz"
+    private const val HOST_MAIN_CLASS_B64 =
+        "cHJpdi5zZXZlbnRlZW4uYXJ0aXN0LmJsaW5rLmFyaWEuaG9zdC5CbGlua0FyaWFIb3N0UGx1Z2lu"
+    private val hostClassPath: String by lazy {
+        String(Base64.getDecoder().decode(HOST_CLASS_PATH_B64), Charsets.UTF_8)
+    }
+    private val hostMainClass: String by lazy {
+        String(Base64.getDecoder().decode(HOST_MAIN_CLASS_B64), Charsets.UTF_8)
+    }
+
     /** maven-metadata.xml 解析正则 */
     private val RELEASE_PATTERN = Regex("<release>([^<]+)</release>")
     private val LATEST_PATTERN = Regex("<latest>([^<]+)</latest>")
@@ -225,7 +241,7 @@ internal object AriaSharedHost {
             zos.write(buildPluginYml(version).toByteArray(Charsets.UTF_8))
             zos.closeEntry()
             // 追加 host plugin class
-            zos.putNextEntry(ZipEntry("priv/seventeen/artist/blink/aria/host/BlinkAriaHostPlugin.class"))
+            zos.putNextEntry(ZipEntry(hostClassPath))
             zos.write(Base64.getDecoder().decode(HOST_PLUGIN_CLASS_BASE64))
             zos.closeEntry()
         }
@@ -239,7 +255,7 @@ internal object AriaSharedHost {
     private fun buildPluginYml(version: String): String = buildString {
         append("name: ").append(HOST_PLUGIN_NAME).append('\n')
         append("version: '").append(version).append("'\n")
-        append("main: priv.seventeen.artist.blink.aria.host.BlinkAriaHostPlugin\n")
+        append("main: ").append(hostMainClass).append('\n')
         append("api-version: '1.20'\n")
         append("description: 'Aria script engine host (auto-deployed by Blink)'\n")
         append("authors: ['17Artist']\n")
