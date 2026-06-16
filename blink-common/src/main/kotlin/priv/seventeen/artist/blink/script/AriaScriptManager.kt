@@ -141,12 +141,7 @@ object AriaScriptManager {
     fun eval(code: String, contextHandle: Any? = null): Any? {
         checkAvailable()
         val ctx = contextHandle ?: createContext()
-        val result = try {
-            mEvalCodeContext!!.invoke(null, code, ctx)
-        } catch (e: Throwable) {
-            throw unwrap(e)
-        }
-        return unwrapValue(result)
+        return compileAndExecute(code, ctx)
     }
 
     /**
@@ -176,12 +171,7 @@ object AriaScriptManager {
         if (bindings.isNotEmpty()) {
             injectBindings(ctx, bindings)
         }
-        val result = try {
-            mEvalCodeContext!!.invoke(null, code, ctx)
-        } catch (e: Throwable) {
-            throw unwrap(e)
-        }
-        return unwrapValue(result)
+        return compileAndExecute(code, ctx)
     }
 
     /**
@@ -211,12 +201,7 @@ object AriaScriptManager {
 
         val ctx = getGlobalContext()
         injectBindings(ctx, tempBindings)
-        val result = try {
-            mEvalCodeContext!!.invoke(null, wrappedCode, ctx)
-        } catch (e: Throwable) {
-            throw unwrap(e)
-        }
-        return unwrapValue(result)
+        return compileAndExecute(wrappedCode, ctx)
     }
 
     /** 执行脚本文件。 */
@@ -238,6 +223,45 @@ object AriaScriptManager {
     }
 
     // -------- 内部 API：供 CompiledScript 复用 --------
+
+    /** 编译计数器，用于生成唯一的 routine 名称 */
+    @Volatile private var evalCounter = 0L
+
+    /**
+     * 编译代码为 Routine 并在指定上下文中执行，正确捕获 return 语句的返回值。
+     *
+     * <p>Aria 1.1.1 中 {@code Aria.eval(code, ctx)} 不返回脚本的 return 值（返回 NoneValue），
+     * 必须通过 compile → routine.execute(ctx) 路径来获取实际返回值。
+     */
+    private fun compileAndExecute(code: String, ctx: Any): Any? {
+        val name = "__blink_eval_${evalCounter++}"
+        val routine = try {
+            mCompileNameCode!!.invoke(null, name, code)
+        } catch (e: Throwable) {
+            throw unwrap(e)
+        } ?: return null
+        val executeMethod = routine.javaClass.getMethod("execute", contextClass)
+        val raw = try {
+            executeMethod.invoke(routine, ctx)
+        } catch (e: Throwable) {
+            throw unwrap(e)
+        }
+        return unwrapValue(raw)
+    }
+
+    /**
+     * 仅执行代码，不关心返回值。使用 {@code Aria.eval(code, ctx)} 快速路径。
+     * 适用于命名空间注册、副作用脚本等不需要返回值的场景。
+     */
+    fun evalVoid(code: String, contextHandle: Any? = null) {
+        checkAvailable()
+        val ctx = contextHandle ?: createContext()
+        try {
+            mEvalCodeContext!!.invoke(null, code, ctx)
+        } catch (e: Throwable) {
+            throw unwrap(e)
+        }
+    }
 
     /**
      * 获取引擎全局上下文。优先使用 Engine.getContext()，若不可用则回退到 Aria.createContext()。
