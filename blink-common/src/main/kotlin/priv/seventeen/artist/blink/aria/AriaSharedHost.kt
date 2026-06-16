@@ -277,26 +277,25 @@ internal object AriaSharedHost {
         } catch (_: Throwable) { null }
     }
 
+    /** Aria metadata 固定从 hosted 仓库获取，避免 group 仓库缓存不同步 */
+    private const val ARIA_METADATA_URL =
+        "https://repo.arcartx.com/repository/maven-releases/priv/seventeen/artist/aria/aria/maven-metadata.xml"
+
     /**
      * 从 maven 仓库 maven-metadata.xml 解析 Aria 最新 release 版本。
-     * 任一仓库可达且解析成功即返回；全部失败返回 null（不再 fallback 到硬编码版本，
-     * 由调用方决定是用本地缓存还是报错）。
+     * 固定从 hosted 仓库 (maven-releases) 获取，避免 Nexus group 缓存不同步。
+     * 失败返回 null（由调用方决定是用本地缓存还是报错）。
      */
     private fun resolveLatestAriaVersion(plugin: JavaPlugin): String? {
-        val repos = DependencyLoader.loadRepositoriesInternal(plugin)
-        for (repo in repos) {
-            val base = repo.trimEnd('/')
-            val url = "$base/priv/seventeen/artist/aria/aria/maven-metadata.xml"
-            try {
-                val text = DependencyLoader.fetchTextInternal(url) ?: continue
-                val v = RELEASE_PATTERN.find(text)?.groupValues?.getOrNull(1)
-                    ?: LATEST_PATTERN.find(text)?.groupValues?.getOrNull(1)
-                if (!v.isNullOrBlank()) {
-                    BlinkLog.detail("Aria 最新版本：${v.trim()} (from $base)")
-                    return v.trim()
-                }
-            } catch (_: Throwable) { /* try next */ }
-        }
+        try {
+            val text = DependencyLoader.fetchTextInternal(ARIA_METADATA_URL) ?: return null
+            val v = RELEASE_PATTERN.find(text)?.groupValues?.getOrNull(1)
+                ?: LATEST_PATTERN.find(text)?.groupValues?.getOrNull(1)
+            if (!v.isNullOrBlank()) {
+                BlinkLog.detail("Aria 最新版本：${v.trim()} (from maven-releases)")
+                return v.trim()
+            }
+        } catch (_: Throwable) { /* 仓库不可达 */ }
         return null
     }
 }
