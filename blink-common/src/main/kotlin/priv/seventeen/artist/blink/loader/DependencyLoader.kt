@@ -32,6 +32,7 @@ object DependencyLoader {
     private const val READ_TIMEOUT = 30000
 
     private val DEFAULT_REPOSITORIES = listOf(
+        "https://repo.arcartx.com/repository/maven-releases/",
         "https://repo.arcartx.com/repository/maven-public/",
         "https://maven.aliyun.com/repository/central",
         "https://repo1.maven.org/maven2",
