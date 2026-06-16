@@ -186,6 +186,13 @@ class BytecodeGenerator(private val targetPkg: String) {
         mv.visitFieldInsn(GETSTATIC, LIFECYCLE_ENUM, "DISABLE", "L$LIFECYCLE_ENUM;")
         mv.visitMethodInsn(INVOKEVIRTUAL, LIFECYCLE_MANAGER, "trigger", "(L$LIFECYCLE_ENUM;)V", false)
 
+        // 清理事件和生命周期注册，防止 reload 后 handler 累积
+        mv.visitFieldInsn(GETSTATIC, EVENT_MANAGER, "INSTANCE", "L$EVENT_MANAGER;")
+        mv.visitMethodInsn(INVOKEVIRTUAL, EVENT_MANAGER, "unregisterAll", "()V", false)
+
+        mv.visitFieldInsn(GETSTATIC, LIFECYCLE_MANAGER, "INSTANCE", "L$LIFECYCLE_MANAGER;")
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIFECYCLE_MANAGER, "clear", "()V", false)
+
         if (enableScript) {
             mv.visitFieldInsn(GETSTATIC, SCRIPT_MANAGER, "INSTANCE", "L$SCRIPT_MANAGER;")
             mv.visitMethodInsn(INVOKEVIRTUAL, SCRIPT_MANAGER, "shutdown", "()V", false)
@@ -214,6 +221,10 @@ class BytecodeGenerator(private val targetPkg: String) {
 
         val mv = cw.visitMethod(ACC_PUBLIC or ACC_STATIC, "registerAll", "()V", null, null)
         mv.visitCode()
+
+        // 幂等保障：先清理已有注册，防止 reload 后 handler 累积
+        mv.visitFieldInsn(GETSTATIC, LIFECYCLE_MANAGER, "INSTANCE", "L$LIFECYCLE_MANAGER;")
+        mv.visitMethodInsn(INVOKEVIRTUAL, LIFECYCLE_MANAGER, "clear", "()V", false)
 
         for ((index, entry) in entries.withIndex()) {
             if (!entry.isStatic && !entry.hasInstance && entry.companionAccess == null) continue
@@ -287,6 +298,10 @@ class BytecodeGenerator(private val targetPkg: String) {
 
         val mv = cw.visitMethod(ACC_PUBLIC or ACC_STATIC, "registerAll", "()V", null, null)
         mv.visitCode()
+
+        // 幂等保障：先注销已有事件监听，防止 reload 后 handler 累积
+        mv.visitFieldInsn(GETSTATIC, EVENT_MANAGER, "INSTANCE", "L$EVENT_MANAGER;")
+        mv.visitMethodInsn(INVOKEVIRTUAL, EVENT_MANAGER, "unregisterAll", "()V", false)
 
         for ((index, entry) in entries.withIndex()) {
             if (!entry.isStatic && !entry.hasInstance && entry.companionAccess == null) continue

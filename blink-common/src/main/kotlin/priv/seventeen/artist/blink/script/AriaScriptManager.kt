@@ -70,7 +70,10 @@ object AriaScriptManager {
     @Volatile private var mVariableKeyOf: Method? = null
     @Volatile private var mGetGlobalStorage: Method? = null
     @Volatile private var mGetGlobalVariable: Method? = null
+    @Volatile private var mDeclareGlobalVariable: Method? = null
+    @Volatile private var mVariableSetValue: Method? = null
     @Volatile private var mIValueJvmValue: Method? = null
+    @Volatile private var mEngineGetContext: Method? = null
 
     /** Aria 引擎是否可用 */
     val isAvailable: Boolean get() = initialized
@@ -157,6 +160,65 @@ object AriaScriptManager {
         return eval(code, ctx)
     }
 
+    /**
+     * 在引擎全局上下文中执行代码。全局上下文继承 CallableManager 注册的所有命名空间
+     * （如 {@code symphony.*}），适合 @derive/@formula 等需要访问桥接函数的场景。
+     *
+     * <p>注意：全局上下文是共享的，并发场景应使用 [evalWithArgs] 代替。
+     *
+     * @param code 脚本源码
+     * @param bindings 注入到全局上下文的临时变量
+     * @return 脚本结果（已 unwrap 为 JDK 类型）
+     */
+    fun evalInGlobal(code: String, bindings: Map<String, Any?> = emptyMap()): Any? {
+        checkAvailable()
+        val ctx = getGlobalContext()
+        if (bindings.isNotEmpty()) {
+            injectBindings(ctx, bindings)
+        }
+        val result = try {
+            mEvalCodeContext!!.invoke(null, code, ctx)
+        } catch (e: Throwable) {
+            throw unwrap(e)
+        }
+        return unwrapValue(result)
+    }
+
+    /**
+     * 执行带参数的脚本代码。将代码包装为立即调用的闭包，参数通过闭包形参传入，
+     * 彻底绕过上下文变量系统的限制。
+     *
+     * <p>等效于在 Aria 中执行：{@code ((arg0, arg1, ...) -> { <code> })(val0, val1, ...)}
+     *
+     * <p>脚本内可直接使用参数名访问值，同时全局命名空间（{@code symphony.*} 等）可用。
+     *
+     * @param code 脚本函数体（不含外层 fun/lambda 声明）
+     * @param args 有序参数列表，key=参数名，value=参数值
+     * @return 脚本结果（已 unwrap 为 JDK 类型）
+     */
+    fun evalWithArgs(code: String, args: Map<String, Any?>): Any? {
+        checkAvailable()
+        if (args.isEmpty()) return evalInGlobal(code)
+
+        // 构建闭包包装：((p1, p2) -> { <code> })(v1, v2)
+        val paramNames = args.keys.joinToString(", ")
+        val placeholders = args.keys.mapIndexed { i, _ -> "__blink_arg_$i" }.joinToString(", ")
+        val wrappedCode = "(($paramNames) -> { $code })($placeholders)"
+
+        // 将实际参数值通过 bindings 注入为临时变量 __blink_arg_N
+        val tempBindings = mutableMapOf<String, Any?>()
+        args.values.forEachIndexed { i, value -> tempBindings["__blink_arg_$i"] = value }
+
+        val ctx = getGlobalContext()
+        injectBindings(ctx, tempBindings)
+        val result = try {
+            mEvalCodeContext!!.invoke(null, wrappedCode, ctx)
+        } catch (e: Throwable) {
+            throw unwrap(e)
+        }
+        return unwrapValue(result)
+    }
+
     /** 执行脚本文件。 */
     fun evalFile(file: File, bindings: Map<String, Any?> = emptyMap()): Any? {
         return eval(file.readText(Charsets.UTF_8), bindings)
@@ -177,6 +239,19 @@ object AriaScriptManager {
 
     // -------- 内部 API：供 CompiledScript 复用 --------
 
+    /**
+     * 获取引擎全局上下文。优先使用 Engine.getContext()，若不可用则回退到 Aria.createContext()。
+     */
+    private fun getGlobalContext(): Any {
+        val engine = mGetEngine?.invoke(null)
+        if (engine != null && mEngineGetContext != null) {
+            val ctx = mEngineGetContext!!.invoke(engine)
+            if (ctx != null) return ctx
+        }
+        // 回退：创建新上下文（功能受限，但至少不会 NPE）
+        return createContext()
+    }
+
     internal fun executeRoutine(routine: Any, bindings: Map<String, Any?>): Any? {
         val ctx = createContext()
         injectBindings(ctx, bindings)
@@ -194,14 +269,29 @@ object AriaScriptManager {
         val gs = mGetGlobalStorage!!.invoke(ctx)
         for ((key, value) in bindings) {
             val varKey = mVariableKeyOf!!.invoke(null, key)
-            val variable = mGetGlobalVariable!!.invoke(gs, varKey)
-                ?: continue
+            // 尝试获取已有变量；不存在时尝试声明新变量
+            var variable = mGetGlobalVariable!!.invoke(gs, varKey)
+            if (variable == null && mDeclareGlobalVariable != null) {
+                mDeclareGlobalVariable!!.invoke(gs, varKey)
+                variable = mGetGlobalVariable!!.invoke(gs, varKey)
+            }
+            if (variable == null) continue
             val wrapped = mWrapObject!!.invoke(null, value)
-            // setValue 在 Variable / IVariable 上：按需查找
-            val setValueM = variable.javaClass.methods.firstOrNull {
-                it.name == "setValue" && it.parameterCount == 1
-            } ?: continue
-            setValueM.invoke(variable, wrapped)
+            // 使用缓存的 setValue 方法或按需查找
+            val setValueM = mVariableSetValue
+                ?: variable.javaClass.methods.firstOrNull {
+                    it.name == "setValue" && it.parameterCount == 1
+                }?.also { mVariableSetValue = it }
+                ?: continue
+            try {
+                setValueM.invoke(variable, wrapped)
+            } catch (_: Throwable) {
+                // 类型不匹配时 fallback：按需查找当前实例的 setValue
+                val fallbackM = variable.javaClass.methods.firstOrNull {
+                    it.name == "setValue" && it.parameterCount == 1
+                } ?: continue
+                fallbackM.invoke(variable, wrapped)
+            }
         }
     }
 
@@ -231,6 +321,28 @@ object AriaScriptManager {
         mGetGlobalStorage = context.getMethod("getGlobalStorage")
         mGetGlobalVariable = globalStorage.getMethod("getGlobalVariable", variableKey)
         mIValueJvmValue = iValue.getMethod("jvmValue")
+
+        // Aria 1.1.1+ 可选 API：声明新全局变量
+        mDeclareGlobalVariable = try {
+            globalStorage.getMethod("declareGlobalVariable", variableKey)
+        } catch (_: NoSuchMethodException) {
+            // 尝试备选方法名
+            try {
+                globalStorage.getMethod("declare", variableKey)
+            } catch (_: NoSuchMethodException) {
+                null
+            }
+        }
+
+        // 引擎全局上下文：Engine.getContext() 或 Engine.getGlobalContext()
+        val engineInstance = mGetEngine!!.invoke(null)
+        if (engineInstance != null) {
+            mEngineGetContext = engineInstance.javaClass.methods.firstOrNull {
+                it.name in setOf("getContext", "getGlobalContext", "getRootContext")
+                        && it.parameterCount == 0
+                        && context.isAssignableFrom(it.returnType)
+            }
+        }
     }
 
     /** 把 Aria IValue 解包为 JDK 类型；非 IValue 原样返回。 */
