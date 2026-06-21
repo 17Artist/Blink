@@ -50,7 +50,7 @@ class BytecodeGenerator(private val targetPkg: String) {
         cw.visit(V17, ACC_PUBLIC or ACC_SUPER, mainClass, null, JAVA_PLUGIN, null)
         generateConstructor(cw, JAVA_PLUGIN)
         generateOnLoad(cw, mainClass, enableScript, enableAria, enableAsteroid)
-        generateOnEnable(cw, mainClass, enableAsteroid)
+        generateOnEnable(cw, mainClass)
         generateOnDisable(cw, enableScript, enableAria, enableAsteroid)
         cw.visitEnd()
         return cw.toByteArray()
@@ -103,8 +103,11 @@ class BytecodeGenerator(private val targetPkg: String) {
         }
 
         if (enableAsteroid) {
+            // 自 1.4.0 起，Asteroid 由 AsteroidSharedHost 部署为全局共享插件 BlinkAsteroidHost，
+            // init(plugin) 触发宿主选举/复用；NMS 加载与全局数据包注入由宿主 onEnable 完成。
             mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
-            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "init", "()V", false)
+            mv.visitVarInsn(ALOAD, 0)
+            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "init", "(L$JAVA_PLUGIN;)V", false)
         }
 
         mv.visitMethodInsn(INVOKESTATIC, "$targetPkg/BlinkGeneratedLifeCycle", "registerAll", "()V", false)
@@ -118,17 +121,14 @@ class BytecodeGenerator(private val targetPkg: String) {
         mv.visitEnd()
     }
 
-    private fun generateOnEnable(cw: ClassWriter, mainClass: String, enableAsteroid: Boolean) {
+    private fun generateOnEnable(cw: ClassWriter, mainClass: String) {
         val mv = cw.visitMethod(ACC_PUBLIC, "onEnable", "()V", null, null)
         mv.visitCode()
 
         mv.visitMethodInsn(INVOKESTATIC, "$targetPkg/BlinkGeneratedEvents", "registerAll", "()V", false)
 
-        if (enableAsteroid) {
-            mv.visitFieldInsn(GETSTATIC, ASTEROID_MANAGER, "INSTANCE", "L$ASTEROID_MANAGER;")
-            mv.visitVarInsn(ALOAD, 0)
-            mv.visitMethodInsn(INVOKEVIRTUAL, ASTEROID_MANAGER, "enable", "(L$JAVA_PLUGIN;)V", false)
-        }
+        // Asteroid 全局数据包注入由 BlinkAsteroidHost 宿主 onEnable 完成（绑定到长生命周期宿主），
+        // 消费插件无需再注册；自定义 packet listener 由用户经 AsteroidAPI.addPacketListener(thisPlugin, ...) 自行管理。
 
         mv.visitFieldInsn(GETSTATIC, LIFECYCLE_MANAGER, "INSTANCE", "L$LIFECYCLE_MANAGER;")
         mv.visitFieldInsn(GETSTATIC, LIFECYCLE_ENUM, "ENABLE", "L$LIFECYCLE_ENUM;")

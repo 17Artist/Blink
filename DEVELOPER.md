@@ -8,8 +8,8 @@ BlinkGeneratedMain.onLoad()
     bukkitPlugin = this
     DependencyLoader.loadAll()
     [enableScript]  DependencyLoader.loadNashorn() → ScriptManager.init()
-    [enableAria]    DependencyLoader.loadAria() → AriaScriptManager.init()
-    [enableAsteroid] DependencyLoader.loadAsteroid() → AsteroidManager.init(plugin)
+    [enableAria]    AriaScriptManager.init(plugin) → AriaSharedHost.acquire (部署/复用 BlinkAriaHost)
+    [enableAsteroid] AsteroidManager.init(plugin) → AsteroidSharedHost.acquire (部署/复用 BlinkAsteroidHost)
     BlinkGeneratedLifeCycle.registerAll()
     LifeCycleManager.trigger(LOAD)
 
@@ -371,7 +371,7 @@ disable 时由生成的主类自动调用 `AriaScriptManager.shutdown()`。
 
 ## Asteroid NMS 桥接
 
-集成 [Asteroid](https://repo.arcartx.com) 跨版本 NMS 操作库，`enableAsteroid.set(true)` 启用后运行时自动下载。一套代码适配 MC 1.18.2 ~ 26.1，兼容 Paper / Spigot / Folia。
+集成 [Asteroid](https://repo.arcartx.com) 跨版本 NMS 操作库，`enableAsteroid.set(true)` 启用后运行时自动部署为全 JVM 唯一的共享插件 `BlinkAsteroidHost`（与 Aria 同模型，不打包进消费者 jar）。一套代码适配 MC 1.18.2 ~ 26.1，兼容 Paper / Spigot / Folia。
 
 ```kotlin
 @Awake(LifeCycle.ENABLE, priority = 10)
@@ -413,9 +413,9 @@ val json = AsteroidAPI.getItemStackNMS().item2Json(itemStack)
 val restored = AsteroidAPI.getItemStackNMS().json2Item(json)
 ```
 
-disable 时由生成的主类自动调用 `AsteroidManager.shutdown()`。
+disable 时由生成的主类自动调用 `AsteroidManager.shutdown()`，仅释放本插件本地引用——共享宿主 `BlinkAsteroidHost` 与全局数据包注入跨插件存活，不会被单个插件卸载拆掉。若用过 `AsteroidAPI.addPacketListener(bukkitPlugin, ...)`，请在自身 onDisable 调 `AsteroidAPI.removePacketListener(bukkitPlugin, ...)` 自行清理（框架不代管）。
 
-`enableAsteroid = false` 时不会下载任何依赖。
+`enableAsteroid = false` 时不会部署宿主、不下载任何依赖。
 
 ## 运行时依赖加载
 
@@ -425,10 +425,11 @@ onLoad 阶段自动下载：
 |----------------------------------------------|----------------------|
 | kotlin-stdlib / kotlin-reflect / annotations | 环境中不存在时              |
 | nashorn-core + ASM                           | enableScript = true  |
-| aria                                         | enableAria = true    |
+| aria（部署为 BlinkAriaHost 共享插件）                 | enableAria = true    |
+| asteroid-nms（部署为 BlinkAsteroidHost 共享插件）     | enableAsteroid = true |
 | blink-libraries 声明的依赖                        | 始终                   |
 
-`enableAsteroid = true` 时 asteroid-nms 通过 Shadow 打包进 jar（Paper 需要在加载阶段识别 NMS 类），不走运行时下载。
+`enableAsteroid = true` 时 asteroid-nms 由 `AsteroidSharedHost` 在 onLoad 阶段下载并包装成 `BlinkAsteroidHost.jar`（追加 plugin.yml + 宿主入口类），经 `PluginManager.loadPlugin`/`enablePlugin` 部署为全 JVM 唯一的共享 Bukkit 插件——不打包进消费者 jar、不 relocate。缓存于 `plugins/.blink-shared/BlinkAsteroidHost.jar`，仓库不可达时回退本地缓存。
 
 下载目录：`plugins/<PluginName>/libs/`
 

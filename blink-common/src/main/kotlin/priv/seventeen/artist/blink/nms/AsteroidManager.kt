@@ -17,66 +17,71 @@ package priv.seventeen.artist.blink.nms
 
 import org.bukkit.plugin.java.JavaPlugin
 import priv.seventeen.artist.asteroid.AsteroidAPI
-import priv.seventeen.artist.asteroid.internal.NMSLoader
 import priv.seventeen.artist.blink.BlinkLog
 
 /**
- * Asteroid NMS 桥接管理器。
+ * Asteroid NMS 桥接管理器（共享中间件入口，与 AriaScriptManager 同模型）。
  *
- * <p>blink-common 通过 compileOnly 依赖 asteroid-api，运行时由 DependencyLoader.loadAsteroid() 自动下载
- * asteroid-nms (shadow jar) 并注入 classpath。
- * 当 {@code enableAsteroid = true} 时，生成的主类在 onLoad 调用 {@link #init} 加载 NMS 实现，
- * 在 onEnable 调用 {@link #enable} 注册数据包监听，onDisable 调用 {@link #shutdown}。
+ * <p>blink-common 通过 compileOnly 依赖 asteroid-nms；运行时 {@code init(plugin)} 委托
+ * {@link AsteroidSharedHost#acquire} 部署/复用全 JVM 唯一的 {@code BlinkAsteroidHost} 插件。
+ * 宿主 onEnable 内执行 {@code NMSLoader.load(host)}，将全局数据包注入 + Bukkit 事件监听绑定到
+ * <b>长生命周期的宿主</b>，因此单个消费插件 disable 不会拆掉它。
+ *
+ * <p>消费插件直接使用 {@code priv.seventeen.artist.asteroid.*} 类型；如需自定义数据包监听，
+ * 经 {@code AsteroidAPI.addPacketListener(thisPlugin, ...)} 注册，并在自身 onDisable 调用
+ * {@code AsteroidAPI.removePacketListener(thisPlugin, ...)} 清理（框架不代管）。
  */
 object AsteroidManager {
 
     @Volatile
     private var initialized = false
 
+    @Volatile
+    private var sharedCL: ClassLoader? = null
+
     /** Asteroid 是否可用 */
     val isAvailable: Boolean get() = initialized
 
+    /** 当前共享 Asteroid 版本，未初始化或失败时为 null */
+    val version: String? get() = AsteroidSharedHost.currentVersion
+
     /**
-     * 初始化 Asteroid NMS 桥接（加载 NMS 实现，不注册事件）。
-     * 由 BlinkGeneratedMain.onLoad() 自动调用，不需要手动调用。
+     * 暴露共享 ClassLoader，供需要动态加载 Asteroid 扩展类型的场景使用。
      */
-    fun init() {
+    val sharedClassLoader: ClassLoader? get() = sharedCL
+
+    /**
+     * 初始化 Asteroid NMS 桥接。由 BlinkGeneratedMain.onLoad() 自动调用，不需要手动调用。
+     *
+     * @param plugin 当前插件，用于触发 [AsteroidSharedHost] 选举宿主或加入客户
+     */
+    fun init(plugin: JavaPlugin) {
+        if (initialized) return
         try {
-            NMSLoader.load()
+            val cl = AsteroidSharedHost.acquire(plugin)
+            if (cl == null) {
+                BlinkLog.error("Asteroid 共享 ClassLoader 获取失败，NMS 不可用")
+                initialized = false
+                return
+            }
+            sharedCL = cl
             initialized = true
-            BlinkLog.success("Asteroid NMS 桥接已初始化 (MC ${AsteroidAPI.getMcVersion()})")
-        } catch (e: Exception) {
+            BlinkLog.success("Asteroid NMS 桥接已就绪 (MC ${AsteroidAPI.getMcVersion()}, v${AsteroidSharedHost.currentVersion ?: "?"})")
+        } catch (e: Throwable) {
             BlinkLog.error("Asteroid 初始化失败", e)
             initialized = false
         }
     }
 
     /**
-     * 注册 Asteroid 数据包事件监听。
-     * 由 BlinkGeneratedMain.onEnable() 自动调用，不需要手动调用。
+     * 关闭 Asteroid NMS 桥接。由 BlinkGeneratedMain.onDisable() 自动调用。
      *
-     * @param plugin 插件实例，用于注册事件监听
-     */
-    fun enable(plugin: JavaPlugin) {
-        if (!initialized) return
-        try {
-            val handler = AsteroidAPI.getPacketHandler()
-            // registerEvents 定义在 PacketHandlerImpl（实现类），不在接口上
-            val method = handler.javaClass.getMethod("registerEvents", org.bukkit.plugin.Plugin::class.java)
-            method.invoke(handler, plugin)
-            BlinkLog.success("Asteroid 数据包监听已注册")
-        } catch (e: Exception) {
-            BlinkLog.error("Asteroid 数据包监听注册失败", e)
-        }
-    }
-
-    /**
-     * 关闭 Asteroid NMS 桥接。
-     * 由 BlinkGeneratedMain.onDisable() 自动调用，不需要手动调用。
+     * <p>共享宿主与全局数据包注入由 BlinkAsteroidHost 持有、跨插件存活，绝不在此销毁；
+     * 仅释放本插件本地引用。本插件注册的 packet listener 需由用户在 onDisable 自行 removePacketListener。
      */
     fun shutdown() {
         initialized = false
-        BlinkLog.info("Asteroid NMS 桥接已关闭")
+        BlinkLog.detail("Asteroid 本地引用已释放（共享 host 继续保留）")
     }
 
     /**

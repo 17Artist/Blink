@@ -138,13 +138,14 @@ class BlinkPlugin : Plugin<Project> {
             hardcodedFallback = "1.1.0"
         )
         val depNotation = "priv.seventeen.artist.asteroid:asteroid-nms:$asteroidVersion"
-        // implementation: 打包进 shadow jar，Paper 需要在加载阶段识别 NMS 类
-        val impl = project.configurations.findByName("implementation")
-        if (impl != null) {
-            project.dependencies.add("implementation", depNotation)
-            project.logger.lifecycle("[Blink] Asteroid NMS 桥接已添加 (implementation): $depNotation")
+        // compileOnly: 编译时可用，运行时由 AsteroidSharedHost 部署 BlinkAsteroidHost 到全局共享 ClassLoader
+        // （不打包、不 relocate，全 JVM 仅一份，与 Aria 同模型）
+        val compileOnly = project.configurations.findByName("compileOnly")
+        if (compileOnly != null) {
+            project.dependencies.add("compileOnly", depNotation)
+            project.logger.lifecycle("[Blink] Asteroid NMS 桥接已添加 (compileOnly): $depNotation")
         } else {
-            project.logger.warn("[Blink] 未找到 implementation 配置，无法添加 Asteroid 依赖")
+            project.logger.warn("[Blink] 未找到 compileOnly 配置，无法添加 Asteroid 依赖")
         }
     }
 
@@ -197,11 +198,7 @@ class BlinkPlugin : Plugin<Project> {
                     val pkgName = extension.packageName.get().ifEmpty { project.group.toString() }
                     if (pkgName.isNotEmpty()) {
                         relocateMethod.invoke(task, "priv.seventeen.artist.blink", "$pkgName.blink")
-                        // Aria 运行时由 DependencyLoader 独立下载注入，不 relocate
-                        // Asteroid 打包进 shadow jar，relocate 会自动处理字符串常量中的包名
-                        if (extension.enableAsteroid.get()) {
-                            relocateMethod.invoke(task, "priv.seventeen.artist.asteroid", "$pkgName.asteroid")
-                        }
+                        // Aria / Asteroid 运行时由各自 SharedHost 部署为全局共享插件，不打包、不 relocate
                     }
                 } catch (_: Exception) {
                     project.logger.warn("[Blink] 配置 Shadow relocate 失败，请手动配置")
@@ -310,11 +307,9 @@ class BlinkPlugin : Plugin<Project> {
             keeps.addAll(extension.obfuscateKeep.get())
             addListProperty(extClass, proteusExt, "keepClasses", keeps)
 
-            // exclude — Blink 运行时 + Asteroid NMS + META-INF + 用户自定义
+            // exclude — Blink 运行时 + META-INF + 用户自定义
+            // （Asteroid 已不打包进消费者 jar，无需 exclude）
             val excludes = mutableListOf("META-INF/**", "$blinkPkg.**")
-            if (extension.enableAsteroid.get()) {
-                excludes.add("$pkgName.asteroid.**")
-            }
             excludes.addAll(extension.obfuscateExclude.get())
             addListProperty(extClass, proteusExt, "exclude", excludes)
 
