@@ -57,7 +57,13 @@ class BlinkPlugin : Plugin<Project> {
     }
 
     private fun configureAria(project: Project) {
-        val ariaVersion = resolveLatestAriaVersion(project)
+        val ariaVersion = resolveLatestVersion(
+            project,
+            groupPath = "priv/seventeen/artist/aria",
+            artifactId = "aria",
+            propertyName = "ariaVersion",
+            hardcodedFallback = "1.1.1"
+        )
         val depNotation = "priv.seventeen.artist.aria:aria:$ariaVersion"
         // compileOnly: 编译时可用，运行时由 AriaSharedHost 加载到全局共享 ClassLoader
         val compileOnly = project.configurations.findByName("compileOnly")
@@ -70,10 +76,21 @@ class BlinkPlugin : Plugin<Project> {
     }
 
     /**
-     * 解析仓库中 Aria 的最新 release 版本。
-     * 优先级：仓库 maven-metadata 的 <release> > <latest> > gradle.properties.ariaVersion > 硬编码兜底。
+     * 解析仓库中指定构件的最新 release 版本。
+     * 优先级：仓库 maven-metadata 的 <release> > <latest> > gradle.properties[propertyName] > 硬编码兜底。
+     *
+     * @param groupPath         构件 group 的斜杠路径，例如 "priv/seventeen/artist/aria"
+     * @param artifactId        构件 artifactId，例如 "aria" / "asteroid-nms"
+     * @param propertyName      仓库全部不可达时的兜底 gradle 属性名，例如 "ariaVersion"
+     * @param hardcodedFallback 属性也缺失时的最终兜底版本
      */
-    private fun resolveLatestAriaVersion(project: Project): String {
+    private fun resolveLatestVersion(
+        project: Project,
+        groupPath: String,
+        artifactId: String,
+        propertyName: String,
+        hardcodedFallback: String
+    ): String {
         val repos = listOf(
             "https://repo.arcartx.com/repository/maven-public/",
             "https://maven.aliyun.com/repository/central",
@@ -84,7 +101,7 @@ class BlinkPlugin : Plugin<Project> {
         val latestRegex = Regex("<latest>([^<]+)</latest>")
         for (repo in repos) {
             val base = repo.trimEnd('/')
-            val url = "$base/priv/seventeen/artist/aria/aria/maven-metadata.xml"
+            val url = "$base/$groupPath/$artifactId/maven-metadata.xml"
             try {
                 val conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
                     connectTimeout = 5000
@@ -100,20 +117,26 @@ class BlinkPlugin : Plugin<Project> {
                 val v = releaseRegex.find(text)?.groupValues?.getOrNull(1)
                     ?: latestRegex.find(text)?.groupValues?.getOrNull(1)
                 if (!v.isNullOrBlank()) {
-                    project.logger.lifecycle("[Blink] Aria 版本解析: ${v.trim()} (latest from $base)")
+                    project.logger.lifecycle("[Blink] $artifactId 版本解析: ${v.trim()} (latest from $base)")
                     return v.trim()
                 }
             } catch (_: Exception) {
                 // try next repo
             }
         }
-        val fallback = project.findProperty("ariaVersion")?.toString() ?: "1.1.1"
-        project.logger.lifecycle("[Blink] Aria 版本解析: $fallback (fallback, 仓库不可达)")
+        val fallback = project.findProperty(propertyName)?.toString() ?: hardcodedFallback
+        project.logger.lifecycle("[Blink] $artifactId 版本解析: $fallback (fallback, 仓库不可达)")
         return fallback
     }
 
     private fun configureAsteroid(project: Project) {
-        val asteroidVersion = project.findProperty("asteroidVersion")?.toString() ?: "1.0.1"
+        val asteroidVersion = resolveLatestVersion(
+            project,
+            groupPath = "priv/seventeen/artist/asteroid",
+            artifactId = "asteroid-nms",
+            propertyName = "asteroidVersion",
+            hardcodedFallback = "1.1.0"
+        )
         val depNotation = "priv.seventeen.artist.asteroid:asteroid-nms:$asteroidVersion"
         // implementation: 打包进 shadow jar，Paper 需要在加载阶段识别 NMS 类
         val impl = project.configurations.findByName("implementation")
