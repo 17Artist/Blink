@@ -63,10 +63,21 @@ class AnnotationScanner {
     val listenerEntries = mutableListOf<ListenerEntry>()
 
     /**
+     * BlinkConfig / BlinkSection 子类的 internal name 列表（含传递继承）。
+     *
+     * <p>这些类按「字段名 → YAML key」反射映射配置，一旦被 Proteus 重命名字段，
+     * 生成的 YAML key 会变成乱码、且每次构建可能不同。因此需要在混淆时整体排除它们。
+     */
+    val configClasses = mutableListOf<String>()
+
+    /**
      * 第一遍扫描收集到的 companion 关系：key 为 companion 内部类的 internal name，
      * value 为如何从外层类访问到该 companion 实例。
      */
     private val companionAccessMap = mutableMapOf<String, CompanionAccess>()
+
+    /** 每个类的直接父类 internal name（用于解析 BlinkConfig/BlinkSection 的传递继承）。 */
+    private val classSupers = mutableMapOf<String, String?>()
 
     fun scan(classesRoot: File) {
         val classFiles = classesRoot.walk()
@@ -74,10 +85,26 @@ class AnnotationScanner {
             .filter { !it.nameWithoutExtension.startsWith("BlinkGenerated") }
             .toList()
 
-        // 第一遍：发现所有 companion 类与外层类持有它的字段
+        // 第一遍：发现所有 companion 类与外层类持有它的字段，并记录类继承关系
         classFiles.forEach { collectCompanionRelations(it) }
         // 第二遍：扫描 @Awake / @AutoListener
         classFiles.forEach { scanClassFile(it) }
+        // 解析 BlinkConfig / BlinkSection 子类（含传递继承）
+        resolveConfigClasses()
+    }
+
+    private fun resolveConfigClasses() {
+        for (name in classSupers.keys) {
+            var cur = classSupers[name]
+            var depth = 0
+            while (cur != null && depth++ < 30) {
+                if (cur in CONFIG_BASE_CLASSES) {
+                    configClasses.add(name)
+                    break
+                }
+                cur = classSupers[cur]
+            }
+        }
     }
 
     private fun collectCompanionRelations(file: File) {
@@ -102,6 +129,7 @@ class AnnotationScanner {
 
         override fun visit(version: Int, access: Int, name: String, signature: String?, superName: String?, interfaces: Array<String>?) {
             ownerClassName = name
+            classSupers[name] = superName
         }
 
         override fun visitField(access: Int, name: String, descriptor: String, signature: String?, value: Any?): FieldVisitor? {
@@ -217,6 +245,12 @@ class AnnotationScanner {
     companion object {
         private const val AWAKE_DESC = "Lpriv/seventeen/artist/blink/lifecycle/Awake;"
         private const val AUTO_LISTENER_DESC = "Lpriv/seventeen/artist/blink/event/AutoListener;"
+
+        /** BlinkConfig / BlinkSection 的 internal name（编译期、relocate 之前为规范包名）。 */
+        private val CONFIG_BASE_CLASSES = setOf(
+            "priv/seventeen/artist/blink/config/BlinkConfig",
+            "priv/seventeen/artist/blink/config/BlinkSection"
+        )
 
         fun extractFirstParamType(desc: String): String? {
             val start = desc.indexOf('(')

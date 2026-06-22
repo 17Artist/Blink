@@ -19,6 +19,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.jvm.tasks.Jar
 import java.io.File
@@ -313,6 +314,20 @@ class BlinkPlugin : Plugin<Project> {
             excludes.addAll(extension.obfuscateExclude.get())
             addListProperty(extClass, proteusExt, "exclude", excludes)
 
+            // 自动排除配置类：BlinkConfig / BlinkSection 子类按字段名反射映射 YAML key，
+            // 混淆会把字段名改成乱码导致配置失效（甚至每次构建 key 都变）。
+            // 类清单由 blinkGenerate 编译期扫描写到 build/blink-obfuscate-exclude.txt，
+            // 此处以惰性 Provider 追加：obfuscate 任务依赖 shadowJar→blinkGenerate，
+            // 执行 obfuscate 时文件已生成。
+            val buildDirFile = project.layout.buildDirectory.get().asFile
+            val configExcludeProvider = project.provider {
+                val f = File(buildDirFile, "blink-obfuscate-exclude.txt")
+                if (f.isFile) f.readLines().map { it.trim() }.filter { it.isNotEmpty() } else emptyList()
+            }
+            if (!addListPropertyProvider(extClass, proteusExt, "exclude", configExcludeProvider)) {
+                project.logger.warn("[Blink] 无法以 Provider 方式追加配置类排除，开启混淆时 BlinkConfig 字段名可能被改写，请手动 obfuscateExclude 配置类")
+            }
+
             project.logger.lifecycle("[Blink] Proteus 混淆已配置: defaultPackage=$pkgName")
 
         } catch (e: Exception) {
@@ -351,6 +366,31 @@ class BlinkPlugin : Plugin<Project> {
                 val setMethod = prop.javaClass.getMethod("set", Iterable::class.java)
                 setMethod.invoke(prop, values)
             } catch (_: Exception) { }
+        }
+    }
+
+    /**
+     * 以惰性 [org.gradle.api.provider.Provider] 向某个 ListProperty 追加元素（反射调用
+     * {@code addAll(Provider)}）。Provider 会在 Proteus 读取该属性（任务执行期）时才求值，
+     * 因此能引用此刻尚未生成、但在 obfuscate 执行前会由 blinkGenerate 写出的文件内容。
+     *
+     * @return 成功追加返回 true；目标属性不支持 addAll(Provider) 时返回 false。
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun addListPropertyProvider(
+        extClass: Class<*>,
+        ext: Any,
+        name: String,
+        provider: Provider<out Iterable<String>>
+    ): Boolean {
+        return try {
+            val getter = extClass.getMethod("get${name.replaceFirstChar { it.uppercase() }}")
+            val prop = getter.invoke(ext)
+            val addAllMethod = prop.javaClass.getMethod("addAll", Provider::class.java)
+            addAllMethod.invoke(prop, provider)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 }

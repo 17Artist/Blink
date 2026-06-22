@@ -75,8 +75,24 @@ abstract class BlinkGenerateTask : DefaultTask() {
 
         generatePluginYml(classesRoot, pkg)
         writeScanResult(classesRoot, scanner)
+        writeConfigExclude(classesRoot, scanner)
 
         logger.lifecycle("[Blink] 代码生成完成")
+    }
+
+    /**
+     * 把检测到的 BlinkConfig / BlinkSection 子类（全限定名）写到 build/blink-obfuscate-exclude.txt。
+     * configureProteus 会以惰性 Provider 读取该文件，将这些类追加进 Proteus 的 exclude——
+     * 因为它们按字段名反射映射 YAML key，混淆改名会破坏配置。
+     */
+    private fun writeConfigExclude(classesRoot: File, scanner: AnnotationScanner) {
+        val buildDir = classesRoot.parentFile.parentFile.parentFile
+        val resultFile = File(buildDir, "blink-obfuscate-exclude.txt")
+        val fqns = scanner.configClasses.map { it.replace('/', '.') }.distinct().sorted()
+        resultFile.writeText(fqns.joinToString("\n"), Charsets.UTF_8)
+        if (fqns.isNotEmpty()) {
+            logger.lifecycle("[Blink] 检测到 ${fqns.size} 个配置类（BlinkConfig/BlinkSection 子类），混淆时将自动排除: ${fqns.joinToString(", ")}")
+        }
     }
 
     private fun writeScanResult(classesRoot: File, scanner: AnnotationScanner) {
