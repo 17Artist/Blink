@@ -43,7 +43,7 @@ rootProject.name = "MyPlugin"
 // build.gradle.kts
 plugins {
     kotlin("jvm") version "1.8.22"
-    id("priv.seventeen.artist.blink") version "1.0.7"
+    id("priv.seventeen.artist.blink") version "1.3.11"
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
@@ -62,7 +62,7 @@ blink {
 }
 
 dependencies {
-    implementation("priv.seventeen.artist.blink:blink-common:1.0.7")
+    implementation("priv.seventeen.artist.blink:blink-common:1.3.11")
     compileOnly("org.spigotmc:spigot-api:1.21-R0.1-SNAPSHOT")
 }
 
@@ -335,7 +335,7 @@ disable 时由生成的主类自动调用 `ScriptManager.shutdown()`。
 
 ## Aria 脚本引擎
 
-集成 [Aria](https://repo.arcartx.com) 脚本引擎，`enableAria.set(true)` 启用后运行时自动下载。Aria 支持预编译、上下文隔离，适合需要高频执行脚本的场景。
+集成 [Aria](https://repo.arcartx.com) 脚本引擎，`enableAria.set(true)` 启用后运行时自动部署为全 JVM 唯一的共享插件 `BlinkAriaHost`（与 Asteroid 同模型，不打包进消费者 jar）。Aria 支持预编译、上下文隔离，适合需要高频执行脚本的场景。
 
 ```kotlin
 @Awake(LifeCycle.ENABLE, priority = 10)
@@ -346,26 +346,23 @@ fun initAria() {
 }
 ```
 
+> 自 1.4.0 起 Aria 改为编译期直接依赖、去掉反射包装层：`AriaScriptManager` 只管生命周期（`isAvailable` / `shutdown`），**不再有 `eval` / `compile` / `createContext`**。执行脚本直接用 `priv.seventeen.artist.aria.Aria` 的静态方法，先用 `AriaScriptManager.isAvailable` 守门。
+
 ```kotlin
-// 基本执行
-AriaScriptManager.eval("1 + 2 + 3")
+import priv.seventeen.artist.aria.Aria
 
-// 带变量注入
-AriaScriptManager.eval("msg + name", mapOf("msg" to "Hello ", "name" to "World"))
+// 一次性 eval：结果是 IValue<?>，用 jvmValue() / stringValue() / numberValue() / booleanValue() 取值
+val sum = Aria.eval("1 + 2 + 3", Aria.createContext()).jvmValue()
 
-// 执行文件
-AriaScriptManager.evalFile(File(bukkitPlugin.dataFolder, "scripts/init.aria"))
+// 预编译（热路径：编译一次、execute 多次），每次用独立 Context 做上下文隔离
+val routine = Aria.compile("greeting", "'Hello, ' + 'World' + '!'")
+val msg = routine.execute(Aria.createContext()).stringValue()
 
-// 上下文隔离
-val ctx = AriaScriptManager.createContext()
-AriaScriptManager.eval("var x = 42", ctx)
-
-// 预编译（适合热路径，编译一次多次执行）
-val routine = AriaScriptManager.compile("greeting.aria", "msg + '!'")
-routine.execute(AriaScriptManager.createContext())
+// 仅当需要反射加载 Aria 扩展类型时，才从共享 ClassLoader 取类
+val cl = AriaScriptManager.sharedClassLoader
 ```
 
-disable 时由生成的主类自动调用 `AriaScriptManager.shutdown()`。
+disable 时由生成的主类自动调用 `AriaScriptManager.shutdown()`（只释放本地引用，共享宿主跨插件存活）。
 
 `enableAria = false` 时不会下载任何依赖。
 

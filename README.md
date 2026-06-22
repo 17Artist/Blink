@@ -85,7 +85,7 @@ maven("https://repo.arcartx.com/repository/maven-public/")
 maven("https://repo.arcartx.com/repository/maven-public/")
 
 // 依赖坐标
-implementation("priv.seventeen.artist.blink:blink-common:1.0.7")
+implementation("priv.seventeen.artist.blink:blink-common:1.3.11")
 ```
 
 ## 协议
