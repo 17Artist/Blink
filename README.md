@@ -1,6 +1,19 @@
-# ⚡ Blink —— 闪烁
+<p align="center">
+  <img src="assets/blink-logo.svg" alt="Blink" width="540">
+</p>
 
+<p align="center">
+  Kotlin Spigot/Paper 插件开发框架 —— 注解驱动，编译期字节码生成
+</p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="license">
+  <img src="https://img.shields.io/badge/Kotlin-1.8.22-7F52FF.svg?logo=kotlin&logoColor=white" alt="Kotlin">
+  <img src="https://img.shields.io/badge/Java-17-ED8B00.svg?logo=openjdk&logoColor=white" alt="Java 17">
+  <img src="https://img.shields.io/badge/platform-Spigot%20%7C%20Paper%20%7C%20Folia-2ea44f.svg" alt="platforms">
+</p>
+
+---
 
 ## 特性
 
@@ -10,7 +23,7 @@
 - **配置系统** — 注解驱动的 YAML 配置，自动序列化/反序列化，支持嵌套 Section
 - **JS 脚本引擎** — 通过 JSR-223 动态链接 Nashorn，按需下载
 - **Aria 脚本引擎** — 集成 [Aria](https://github.com/17Artist/Aria) 脚本引擎，支持预编译、上下文隔离，按需下载
-- **Asteroid NMS 桥接** — 集成 [Asteroid](https://github.com/17Artist/Asteroid) 跨版本 NMS 操作库，一套代码适配 MC 1.18.2 ~ 26.1，按需下载
+- **Asteroid NMS 桥接** — 集成 [Asteroid](https://github.com/17Artist/Asteroid) 跨版本 NMS 操作库，一套代码适配 MC 1.18.2 ~ 26.2，按需下载
 - **运行时 Kotlin 加载** — 启动时检测环境并按需下载注入
 - **混淆集成** — 一行配置接入 [Proteus](https://repo.arcartx.com) 混淆器，自动处理 keep / exclude / 入口类保留
 

@@ -9,3 +9,4 @@
 .worktrees/
 /blink-common/bin/
 /blink-gradle-plugin/bin/
+/docs/
