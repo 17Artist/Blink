@@ -18,10 +18,44 @@ package priv.seventeen.artist.blink.script
 import priv.seventeen.artist.blink.BlinkLog
 import priv.seventeen.artist.blink.bukkitPlugin
 import java.io.File
+import java.net.URL
 import java.net.URLClassLoader
 import java.util.*
 import javax.script.ScriptEngine
 import javax.script.ScriptEngineFactory
+
+/**
+ * Nashorn 专用类加载器：对 Nashorn 及其 ASM 依赖自身的类强制 child-first（self-first），
+ * 其余类照常委派父加载器。
+ *
+ * 背景：宿主环境里可能有其它插件（如 PlaceholderAPI）自带一份**未重定位**的 Nashorn。
+ * 若沿用默认的双亲优先委派，Nashorn 的部分类会被父加载器解析成那份外来副本，与本加载器
+ * 加载的另一部分混用，触发
+ * `LinkageError: loader constraint violation`（同一 Nashorn 类型来自不同 ClassLoader）。
+ * 强制这些包 child-first，可保证 Nashorn 及其 ASM 依赖始终来自 Blink 自带的 jar、彼此一致，
+ * 而 `java.*` / `javax.script.*` / 宿主(Bukkit、插件)类仍走父加载器，不影响脚本中的 `Java.type` 等用法。
+ */
+private class NashornClassLoader(urls: Array<URL>, parent: ClassLoader) : URLClassLoader(urls, parent) {
+
+    override fun loadClass(name: String, resolve: Boolean): Class<*> {
+        if (isSelfFirst(name)) {
+            // 该 loader 未登记并行加载，getClassLoadingLock 会返回 this，加锁仍安全（仅粒度较粗）
+            synchronized(getClassLoadingLock(name)) {
+                (findLoadedClass(name) ?: runCatching { findClass(name) }.getOrNull())?.let {
+                    if (resolve) resolveClass(it)
+                    return it
+                }
+                // 本 loader 的 URL(nashorn-core / asm)里没有，则回退默认委派
+            }
+        }
+        return super.loadClass(name, resolve)
+    }
+
+    private fun isSelfFirst(name: String): Boolean =
+        name.startsWith("org.openjdk.nashorn.") ||
+        name.startsWith("jdk.nashorn.") ||
+        name.startsWith("org.objectweb.asm.")
+}
 
 object ScriptManager {
 
@@ -37,7 +71,8 @@ object ScriptManager {
         }
 
         val urls = nashornJars.map { it.toURI().toURL() }.toTypedArray()
-        val cl = URLClassLoader(urls, bukkitPlugin.javaClass.classLoader)
+        // 用 child-first 隔离加载器，避免与宿主内其它插件自带的 Nashorn 串包（详见 NashornClassLoader 注释）
+        val cl = NashornClassLoader(urls, bukkitPlugin.javaClass.classLoader)
 
         val factory = resolveNashornFactory(cl)
         if (factory == null) {
