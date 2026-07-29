@@ -53,7 +53,7 @@ create.bat
 
 ```kotlin
 plugins {
-    id("priv.seventeen.artist.proteus") version "1.0.10"
+    id("priv.seventeen.artist.proteus") version "1.0.13"
 }
 blink {
     obfuscate.set(true)

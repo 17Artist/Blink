@@ -256,7 +256,8 @@ internal object AriaSharedHost {
         append("name: ").append(HOST_PLUGIN_NAME).append('\n')
         append("version: '").append(version).append("'\n")
         append("main: ").append(hostMainClass).append('\n')
-        append("api-version: '1.20'\n")
+        // Aria 支持 1.18+，api-version 取下界以便在全部受支持服务端加载
+        append("api-version: '1.18'\n")
         append("description: 'Aria script engine host (auto-deployed by Blink)'\n")
         append("authors: ['17Artist']\n")
     }

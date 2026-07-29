@@ -449,7 +449,7 @@ Blink 集成 [Proteus](https://repo.arcartx.com) 混淆器，通过反射设置 
 
 ```kotlin
 plugins {
-    id("priv.seventeen.artist.proteus") version "1.0.10"
+    id("priv.seventeen.artist.proteus") version "1.0.13"
 }
 blink {
     obfuscate.set(true)

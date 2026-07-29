@@ -1,0 +1,9 @@
+implicitKeyProbe: "loaded-from-yaml"
+explicit-key-probe: 2402
+nested:
+  message: "nested-loaded"
+  amount: 42
+entries:
+  alpha:
+    value: "map-loaded"
+ignoredProbe: "must-not-load"

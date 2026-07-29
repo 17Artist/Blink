@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm") version "1.8.22"
     id("priv.seventeen.artist.blink") version "1.3.11"
     id("com.github.johnrengelman.shadow") version "8.1.1"
-    id("priv.seventeen.artist.proteus") version "1.0.10"
+    id("priv.seventeen.artist.proteus") version "1.0.13"
 }
 
 group = "com.example.testplugin"
